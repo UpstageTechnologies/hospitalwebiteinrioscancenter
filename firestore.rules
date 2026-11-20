@@ -1,0 +1,230 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // HELPER FUNCTIONS FOR MULTI-TENANT ISOLATION
+    // ==========================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Read user document from /users/{uid}
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Verify user belongs to the specified hospital
+    function belongsToHospital(hospitalId) {
+      return isAuthenticated() && (
+        getUserData().hospitalId == hospitalId ||
+        request.auth.token.hospitalId == hospitalId
+      );
+    }
+
+    // Role verification
+    function isOwner(hospitalId) {
+      return belongsToHospital(hospitalId) && (
+        getUserData().role == 'owner' ||
+        request.auth.token.role == 'owner'
+      );
+    }
+
+    function isAdmin(hospitalId) {
+      return belongsToHospital(hospitalId) && (
+        getUserData().role == 'admin' ||
+        getUserData().role == 'owner' ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'owner'
+      );
+    }
+
+    function isHR(hospitalId) {
+      return belongsToHospital(hospitalId) && (
+        getUserData().role == 'hr_manager' ||
+        isAdmin(hospitalId)
+      );
+    }
+
+    function isDoctor(hospitalId) {
+      return belongsToHospital(hospitalId) && (
+        getUserData().role == 'doctor' ||
+        isAdmin(hospitalId)
+      );
+    }
+
+    function isBillingStaff(hospitalId) {
+      return belongsToHospital(hospitalId) && (
+        getUserData().role == 'billing_staff' ||
+        getUserData().role == 'accountant' ||
+        isAdmin(hospitalId)
+      );
+    }
+
+    // ==========================================
+    // USER PROFILES: users/{uid}
+    // ==========================================
+    match /users/{userId} {
+      // User can read and write their own profile
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin(resource.data.hospitalId));
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Critical: User cannot alter their own role, hospitalId or status
+      allow update: if isAuthenticated() && (
+        isAdmin(resource.data.hospitalId) ||
+        (request.auth.uid == userId &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'hospitalId', 'status']))
+      );
+      allow delete: if false;
+    }
+
+    // ==========================================
+    // HOSPITALS ROOT: hospitals/{hospitalId}
+    // ==========================================
+    match /hospitals/{hospitalId} {
+      // Hospital profile read by its staff; created/updated by owner
+      allow read: if isAuthenticated() && belongsToHospital(hospitalId);
+      allow create: if isAuthenticated();
+      allow update: if isOwner(hospitalId);
+      allow delete: if false;
+
+      // 1. EMPLOYEES: hospitals/{hospitalId}/employees/{employeeId}
+      match /employees/{employeeId} {
+        allow read: if belongsToHospital(hospitalId);
+        // HR can submit new employees, but cannot assign owner or admin roles
+        allow create: if (isHR(hospitalId) || isAdmin(hospitalId)) &&
+                         request.resource.data.primaryRole != 'owner' &&
+                         request.resource.data.primaryRole != 'admin';
+        // Only Admin or Owner can approve/activate employee or modify roles
+        allow update: if isAdmin(hospitalId) || (
+          isHR(hospitalId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'primaryRole', 'additionalRoles'])
+        );
+        allow delete: if isAdmin(hospitalId);
+      }
+
+      // 2. ROLE REQUESTS: hospitals/{hospitalId}/roleRequests/{requestId}
+      match /roleRequests/{requestId} {
+        allow read: if belongsToHospital(hospitalId);
+        // Staff can create role request for themselves (cannot request owner/admin)
+        allow create: if belongsToHospital(hospitalId) &&
+                         request.resource.data.requestedRole != 'owner' &&
+                         request.resource.data.requestedRole != 'admin';
+        // CRITICAL: Staff cannot approve their own requests; only Admin/Owner can approve or reject
+        allow update: if isAdmin(hospitalId) &&
+                         resource.data.employeeId != request.auth.uid;
+        allow delete: if isAdmin(hospitalId);
+      }
+
+      // 3. ATTENDANCE: hospitals/{hospitalId}/attendance/{attendanceId}
+      match /attendance/{attendanceId} {
+        allow read: if belongsToHospital(hospitalId);
+        // HR and Admin can record and update attendance records
+        allow create, update: if isHR(hospitalId) || isAdmin(hospitalId);
+        allow delete: if isAdmin(hospitalId);
+      }
+
+      // 4. PAYROLL: hospitals/{hospitalId}/payroll/{payrollId}
+      match /payroll/{payrollId} {
+        // Sensitive payroll data: read by HR/Admin, or individual employee for their own payslip
+        allow read: if isAdmin(hospitalId) || isHR(hospitalId) ||
+                       (belongsToHospital(hospitalId) && resource.data.employeeId == request.auth.uid);
+        allow write: if isHR(hospitalId) || isAdmin(hospitalId);
+      }
+
+      // 5. PATIENTS: hospitals/{hospitalId}/patients/{patientId}
+      match /patients/{patientId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow create, update: if belongsToHospital(hospitalId);
+        allow delete: if false; // Permanent medical record integrity
+      }
+
+      // 6. APPOINTMENTS: hospitals/{hospitalId}/appointments/{appointmentId}
+      match /appointments/{appointmentId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow create, update: if belongsToHospital(hospitalId);
+        allow delete: if isAdmin(hospitalId);
+      }
+
+      // 7. BILLS / INVOICES: hospitals/{hospitalId}/bills/{billId}
+      match /bills/{billId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow create, update: if isBillingStaff(hospitalId) || isAdmin(hospitalId);
+        allow delete: if false; // Financial ledger immutability
+      }
+
+      // 8. PAYMENTS: hospitals/{hospitalId}/payments/{paymentId}
+      match /payments/{paymentId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow create: if isBillingStaff(hospitalId) || isAdmin(hospitalId);
+        allow update, delete: if false; // Immutable receipt trail
+      }
+
+      // 9. CONSULTATIONS: hospitals/{hospitalId}/consultations/{consultationId}
+      match /consultations/{consultationId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow create, update: if isDoctor(hospitalId) || isAdmin(hospitalId);
+        allow delete: if false; // EMR clinical record preservation
+      }
+
+      // 10. LAB ORDERS & RADIOLOGY:
+      match /labOrders/{orderId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
+      }
+
+      match /radiologyOrders/{orderId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
+      }
+
+      // 11. WARDS, BEDS & ADMISSIONS:
+      match /wards/{wardId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if isAdmin(hospitalId);
+      }
+
+      match /beds/{bedId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
+      }
+
+      match /admissions/{admissionId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
+      }
+
+      // 12. PHARMACY MEDICINES & DISPENSES:
+      match /medicines/{medicineId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
+      }
+
+      match /dispenses/{dispenseId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
+      }
+
+      // 13. DEPARTMENTS & EXPENSES:
+      match /departments/{deptId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if isAdmin(hospitalId);
+      }
+
+      match /expenses/{expenseId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if isAdmin(hospitalId) || isBillingStaff(hospitalId);
+      }
+
+      // 14. NOTIFICATIONS & AUDIT LOGS:
+      match /notifications/{notifId} {
+        allow read, write: if belongsToHospital(hospitalId);
+      }
+
+      match /auditLogs/{logId} {
+        allow read: if isAdmin(hospitalId);
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // Immutable append-only audit trail
+      }
+    }
+  }
+}
