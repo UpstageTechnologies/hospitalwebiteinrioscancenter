@@ -131,8 +131,8 @@ export const PharmacyDashboard: React.FC = () => {
           <span className="text-xs text-slate-500">{medicines.length} Medicines in formulary</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto -mx-2 sm:mx-0">
+          <table className="w-full text-left text-xs min-w-[560px]">
             <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="p-3 font-semibold">Medicine</th>
@@ -196,7 +196,7 @@ export const PharmacyDashboard: React.FC = () => {
       {/* MODAL: DISPENSE MEDICINE */}
       {showDispenseModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-900">Dispense Prescription (FEFO Stock)</h3>
               <button onClick={() => setShowDispenseModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>

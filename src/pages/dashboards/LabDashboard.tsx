@@ -62,8 +62,8 @@ export const LabDashboard: React.FC = () => {
           <span className="text-xs text-slate-400">{labOrders.length} Orders</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto -mx-2 sm:mx-0">
+          <table className="w-full text-left text-xs min-w-[620px]">
             <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="p-3 font-semibold">Order #</th>
@@ -149,7 +149,7 @@ export const LabDashboard: React.FC = () => {
       {/* MODAL: ENTER TEST RESULTS */}
       {showResultModal && selectedOrder && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-900">Enter Diagnostic Findings</h3>
               <button onClick={() => setShowResultModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>

@@ -58,7 +58,7 @@ export const SupportDashboards: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 text-xs font-semibold">
+        <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 text-xs font-semibold overflow-x-auto scrollbar-none w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('ambulance')}
             className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all ${

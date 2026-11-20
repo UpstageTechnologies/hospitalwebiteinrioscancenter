@@ -23,12 +23,15 @@ import {
   Wrench,
   LayoutGrid,
   Receipt,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
   currentTab: string;
   onSelectTab: (tabId: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 interface NavItem {
@@ -40,7 +43,7 @@ interface NavItem {
   badgeColor?: string;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpen = false, onClose }) => {
   const { activeRole, currentUser } = useAuth();
   const { employees } = useHospital();
 
@@ -435,97 +438,129 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
   const navItems = roleNavItems[activeRole] || hrNavItems;
 
   return (
-    <aside className="w-56 md:w-60 bg-white border-r border-slate-200/80 flex flex-col h-screen sticky top-0 select-none z-20 transition-all flex-shrink-0">
-      {/* Brand Header */}
-      <div className="h-16 px-5 border-b border-slate-100 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 font-bold text-sm flex-shrink-0">
-          <HeartPulse className="w-5 h-5 text-white" />
-        </div>
-        <div className="overflow-hidden">
-          <div className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
-            UPSTAGE
-            <span className="text-emerald-700 font-extrabold text-[9px] bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/80">
-              ERP
-            </span>
-          </div>
-          <div className="text-[10px] font-medium text-slate-400 truncate capitalize">
-            {isHRManager ? 'HR & Staff Workspace' : `${activeRole.replace('_', ' ')} Workspace`}
-          </div>
-        </div>
-      </div>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden transition-opacity duration-200"
+          aria-hidden="true"
+        />
+      )}
 
-      {/* Primary Navigation List */}
-      <div className="flex-1 py-6 px-3 space-y-2">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.id;
-
-          return (
-            <button
-              key={item.id}
-              onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-medium transition-all group relative ${
-                isActive
-                  ? 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200/80 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/80'
-              }`}
-            >
-              {/* Active Indicator Bar on Left */}
-              {isActive && (
-                <div className="absolute left-0 top-2.5 bottom-2.5 w-1 bg-emerald-500 rounded-r-full" />
-              )}
-
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
-                    isActive
-                      ? 'bg-emerald-500 text-white shadow-xs'
-                      : 'bg-slate-100/70 text-slate-500 group-hover:bg-slate-100 group-hover:text-slate-700'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="text-left">
-                  <div className={`text-xs ${isActive ? 'font-bold text-emerald-950' : 'font-medium'}`}>
-                    {item.label}
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-normal">
-                    {item.description}
-                  </div>
-                </div>
-              </div>
-
-              {item.badge !== undefined && (
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    item.badgeColor || 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {item.badge}
+      {/* Responsive Sidebar Drawer */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white border-r border-slate-200/80 flex flex-col h-full shadow-2xl transition-transform duration-200 ease-in-out lg:static lg:h-screen lg:w-60 xl:w-64 lg:shadow-none flex-shrink-0 select-none ${
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="h-16 px-4 sm:px-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 font-bold text-sm flex-shrink-0">
+              <HeartPulse className="w-5 h-5 text-white" />
+            </div>
+            <div className="overflow-hidden">
+              <div className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
+                UPSTAGE
+                <span className="text-emerald-700 font-extrabold text-[9px] bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/80">
+                  ERP
                 </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Footer Role Info (Compact & Clean) */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/50">
-        <div className="flex items-center justify-between px-2 py-1">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
-            <div className="truncate">
-              <div className="text-[11px] font-semibold text-slate-700 capitalize truncate">
-                {currentUser?.name || activeRole.replace('_', ' ')}
               </div>
-              <div className="text-[9px] text-slate-400 font-medium capitalize">
-                {activeRole.replace('_', ' ')}
+              <div className="text-[10px] font-medium text-slate-400 truncate capitalize">
+                {isHRManager ? 'HR & Staff Workspace' : `${activeRole.replace('_', ' ')} Workspace`}
               </div>
             </div>
           </div>
-          <Shield className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+
+          {/* Mobile Close Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Close navigation"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      </div>
-    </aside>
+
+        {/* Primary Navigation List */}
+        <div className="flex-1 py-4 sm:py-6 px-3 space-y-1.5 sm:space-y-2 overflow-y-auto">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  onSelectTab(item.id);
+                  onClose?.();
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-medium transition-all group relative min-h-[44px] ${
+                  isActive
+                    ? 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200/80 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/80'
+                }`}
+              >
+                {/* Active Indicator Bar on Left */}
+                {isActive && (
+                  <div className="absolute left-0 top-2.5 bottom-2.5 w-1 bg-emerald-500 rounded-r-full" />
+                )}
+
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
+                      isActive
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : 'bg-slate-100/70 text-slate-500 group-hover:bg-slate-100 group-hover:text-slate-700'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className={`text-xs ${isActive ? 'font-bold text-emerald-950' : 'font-medium'}`}>
+                      {item.label}
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-normal">
+                      {item.description}
+                    </div>
+                  </div>
+                </div>
+
+                {item.badge !== undefined && (
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      item.badgeColor || 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Footer Role Info (Compact & Clean) */}
+        <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+          <div className="flex items-center justify-between px-2 py-1">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
+              <div className="truncate">
+                <div className="text-[11px] font-semibold text-slate-700 capitalize truncate">
+                  {currentUser?.name || activeRole.replace('_', ' ')}
+                </div>
+                <div className="text-[9px] text-slate-400 font-medium capitalize">
+                  {activeRole.replace('_', ' ')}
+                </div>
+              </div>
+            </div>
+            <Shield className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+          </div>
+        </div>
+      </aside>
+    </>
   );
 };

@@ -123,8 +123,8 @@ export const DoctorDashboard: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Sub-Navbar Matching Screenshot 3 */}
-      <div className="flex items-center justify-between bg-white px-5 py-2.5 rounded-2xl border border-slate-200/70 shadow-xs">
-        <div className="flex items-center gap-1.5 bg-slate-100/70 p-1 rounded-xl text-xs font-semibold">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white px-3 sm:px-5 py-2.5 rounded-2xl border border-slate-200/70 shadow-xs">
+        <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-100/70 p-1 rounded-xl text-xs font-semibold overflow-x-auto scrollbar-none">
           {[
             { id: 'dashboard', label: 'Dashboard' },
             { id: 'patients', label: 'Patients' },
@@ -134,7 +134,7 @@ export const DoctorDashboard: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`px-4 py-1.5 rounded-lg transition-all ${
+              className={`px-3 sm:px-4 py-1.5 rounded-lg whitespace-nowrap transition-all ${
                 activeSubTab === tab.id
                   ? 'bg-blue-600 text-white shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -145,7 +145,7 @@ export const DoctorDashboard: React.FC = () => {
           ))}
         </div>
 
-        <div className="text-xs text-slate-500 font-medium hidden sm:block">
+        <div className="text-xs text-slate-500 font-medium hidden sm:block truncate">
           Dr. Workspace • <strong className="text-slate-800">{currentUser?.name || 'Dr. Vikram Malhotra'}</strong>
         </div>
       </div>
@@ -274,16 +274,16 @@ export const DoctorDashboard: React.FC = () => {
 
           {/* Stepped Demographics Histogram Chart matching Screenshot 3 */}
           <div className="pt-2">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <h4 className="text-xs font-bold text-slate-900">Patient Demographics</h4>
-              <div className="flex items-center gap-4 text-[11px]">
-                <span className="flex items-center gap-1.5 text-blue-600 font-medium">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-[11px]">
+                <span className="flex items-center gap-1.5 text-blue-600 font-medium whitespace-nowrap">
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span> Elderly: +13% (23%)
                 </span>
-                <span className="flex items-center gap-1.5 text-amber-600 font-medium">
+                <span className="flex items-center gap-1.5 text-amber-600 font-medium whitespace-nowrap">
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span> Adult: +10% (67%)
                 </span>
-                <span className="flex items-center gap-1.5 text-lime-600 font-medium">
+                <span className="flex items-center gap-1.5 text-lime-600 font-medium whitespace-nowrap">
                   <span className="w-2 h-2 rounded-full bg-lime-500"></span> Youth: +8% (10%)
                 </span>
               </div>
@@ -322,8 +322,8 @@ export const DoctorDashboard: React.FC = () => {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto -mx-2 sm:mx-0">
+            <table className="w-full text-left text-xs min-w-[560px]">
               <thead className="text-slate-400 border-b border-slate-100 font-medium">
                 <tr>
                   <th className="pb-3">Token</th>
@@ -544,7 +544,7 @@ export const DoctorDashboard: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Next Follow-Up Date</label>
                   <input
@@ -555,17 +555,17 @@ export const DoctorDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-5">
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 sm:pt-5">
                   <button
                     type="button"
                     onClick={() => setConsultModalAppointment(null)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                    className="px-4 py-2.5 sm:py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors text-center"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs"
+                    className="px-5 py-2.5 sm:py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs transition-colors text-center"
                   >
                     Complete & Generate Bill
                   </button>

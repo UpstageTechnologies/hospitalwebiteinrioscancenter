@@ -46,7 +46,7 @@ export const EmployeeDashboard: React.FC = () => {
         {/* Left Section (8 Cols) */}
         <div className="lg:col-span-8 space-y-6">
           {/* Greeting Banner */}
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
                 Welcome back, {currentUser?.name.split(' ')[0] || 'Emily'}!
@@ -55,7 +55,7 @@ export const EmployeeDashboard: React.FC = () => {
                 Easily manage your hospital schedule, patient sessions, and tasks.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-start sm:self-auto">
               <button className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 shadow-xs">
                 <HelpCircle className="w-4 h-4" />
               </button>
@@ -160,8 +160,8 @@ export const EmployeeDashboard: React.FC = () => {
           <div className="bg-white rounded-3xl p-5 border border-slate-200/70 shadow-xs space-y-4">
             <h3 className="text-xs font-bold text-slate-900">Clinical & Session Requests</h3>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="w-full text-left text-xs min-w-[420px]">
                 <thead className="text-slate-400 font-medium border-b border-slate-100">
                   <tr>
                     <th className="pb-2.5 font-medium">Client</th>

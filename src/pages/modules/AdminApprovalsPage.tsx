@@ -336,20 +336,20 @@ export const AdminApprovalsPage: React.FC = () => {
                     </div>
 
                     {/* Action Bar */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
                       <button
                         onClick={() => setInspectEmployee(emp)}
-                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1.5"
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1.5 self-start sm:self-auto"
                       >
                         <Eye className="w-3.5 h-3.5 text-slate-400" />
                         <span>Inspect Full Profile</span>
                       </button>
 
-                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-stretch sm:justify-end">
                         <button
                           disabled={!isAuthorizedAdmin}
                           onClick={() => handleOpenRejectEmployee(emp)}
-                          className="px-4 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          className="flex-1 sm:flex-initial text-center justify-center px-4 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                         >
                           <XCircle className="w-4 h-4 text-rose-600" />
                           <span>Reject Registration</span>
@@ -360,7 +360,7 @@ export const AdminApprovalsPage: React.FC = () => {
                             <button
                               disabled={!isAuthorizedAdmin}
                               onClick={() => handleOpenReviewRoles(emp)}
-                              className="px-4 py-2 text-xs font-bold bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-300 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                              className="flex-1 sm:flex-initial text-center justify-center px-4 py-2 text-xs font-bold bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-300 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                             >
                               <ShieldCheck className="w-4 h-4 text-blue-700" />
                               <span>Selectively Review Roles...</span>
@@ -369,7 +369,7 @@ export const AdminApprovalsPage: React.FC = () => {
                             <button
                               disabled={!isAuthorizedAdmin}
                               onClick={() => handleQuickApproveEmployee(emp)}
-                              className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                              className="w-full sm:w-auto text-center justify-center px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                             >
                               <CheckCircle2 className="w-4 h-4 text-white" />
                               <span>Approve All Roles & Activate</span>
@@ -379,7 +379,7 @@ export const AdminApprovalsPage: React.FC = () => {
                           <button
                             disabled={!isAuthorizedAdmin}
                             onClick={() => handleQuickApproveEmployee(emp)}
-                            className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            className="flex-1 sm:flex-initial text-center justify-center px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                           >
                             <CheckCircle2 className="w-4 h-4 text-white" />
                             <span>Accept & Activate Employee</span>
@@ -508,8 +508,8 @@ export const AdminApprovalsPage: React.FC = () => {
               <span>Employee Registrations History ({historicalEmployees.length})</span>
             </h3>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="w-full text-left border-collapse text-xs min-w-[650px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-4">Employee</th>
@@ -597,8 +597,8 @@ export const AdminApprovalsPage: React.FC = () => {
               <span>Staff Role Changes History ({historicalRoleRequests.length})</span>
             </h3>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="w-full text-left border-collapse text-xs min-w-[650px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-4">Staff Member</th>
@@ -676,7 +676,7 @@ export const AdminApprovalsPage: React.FC = () => {
       {/* MODAL 1: SELECTIVE ROLE REVIEW FOR EMPLOYEE REGISTRATION */}
       {reviewRolesEmployee && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-100">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs">
@@ -884,7 +884,7 @@ export const AdminApprovalsPage: React.FC = () => {
       {/* MODAL 4: INSPECT PROFILE */}
       {inspectEmployee && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-900">{inspectEmployee.name} Profile Details</h3>
               <button onClick={() => setInspectEmployee(null)} className="text-slate-400 hover:text-slate-600">

@@ -72,11 +72,17 @@ const HospitalAppContent: React.FC = () => {
   };
 
   const [currentTab, setCurrentTab] = useState<string>(() => getDefaultTabForRole(activeRole));
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Keep tab updated when user switches role
+  // Keep tab updated when user switches role, and close mobile drawer
   useEffect(() => {
     setCurrentTab(getDefaultTabForRole(activeRole));
+    setIsMobileMenuOpen(false);
   }, [activeRole]);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [currentTab]);
 
   if (isAuthLoading) {
     return (
@@ -144,28 +150,38 @@ const HospitalAppContent: React.FC = () => {
       case 'approvals':
         return <AdminApprovalsPage />;
       case 'my_roles':
+      case 'roles':
+      case 'role_requests':
         return <MyRolesPage />;
 
       // Role-Specific Working Dashboards
       case 'doctor_dashboard':
         return <DoctorDashboard />;
       case 'reception_dashboard':
+      case 'patients':
         return <ReceptionistDashboard />;
       case 'billing_dashboard':
+      case 'billing':
         return <BillingDashboard />;
       case 'nurse_dashboard':
         return <NurseDashboard />;
       case 'pharmacy_dashboard':
+      case 'pharmacy':
         return <PharmacyDashboard />;
       case 'lab_dashboard':
+      case 'lab':
         return <LabDashboard />;
       case 'radiology_dashboard':
+      case 'radiology':
         return <RadiologyDashboard />;
       case 'ward_dashboard':
+      case 'wards':
         return <WardDashboard />;
       case 'store_dashboard':
+      case 'store':
         return <StoreDashboard />;
       case 'accountant_dashboard':
+      case 'accounts':
         return <AccountantDashboard />;
       case 'support_dashboard':
         return <SupportDashboards />;
@@ -182,18 +198,29 @@ const HospitalAppContent: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-800 font-sans">
-      {/* Role-Specific Minimal Slim Sidebar */}
-      <Sidebar currentTab={currentTab} onSelectTab={setCurrentTab} />
+    <div className="flex min-h-screen bg-slate-50 text-slate-800 font-sans relative overflow-x-hidden">
+      {/* Role-Specific Minimal Slim Sidebar with Mobile Drawer */}
+      <Sidebar
+        currentTab={currentTab}
+        onSelectTab={(tab) => {
+          setCurrentTab(tab);
+          setIsMobileMenuOpen(false);
+        }}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+      />
 
       {/* Main Layout Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
         {/* Topbar with Direct Role Switcher & Multi-Tenant Hospital Picker */}
-        <Topbar onNavigateTab={setCurrentTab} />
+        <Topbar
+          onNavigateTab={setCurrentTab}
+          onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
+        />
 
         {/* Content Body */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-5 md:p-6 lg:p-8">
+          <div className="max-w-7xl 2xl:max-w-[1800px] w-full mx-auto min-w-0">
             {renderActiveModule()}
           </div>
         </main>

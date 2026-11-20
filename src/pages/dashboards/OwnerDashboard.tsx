@@ -58,7 +58,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
 
       {/* Pending Role Requests Notification Banner (if any) */}
       {pendingRoleApprovals > 0 && (
-        <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-4 flex items-center justify-between shadow-xs">
+        <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold flex-shrink-0">
               <ShieldAlert className="w-5 h-5" />
@@ -74,7 +74,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
           </div>
           <button
             onClick={() => onNavigateTab('role_requests')}
-            className="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl shadow-xs transition-colors flex-shrink-0"
+            className="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl shadow-xs transition-colors flex-shrink-0 w-full sm:w-auto text-center"
           >
             Review Requests
           </button>
@@ -82,11 +82,11 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
       )}
 
       {/* 6-Card Module Launcher Grid (Exactly matching Screenshot 1) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4 sm:gap-6">
         {/* Card 1: Active Primary Emerald Card */}
         <div
           onClick={() => onNavigateTab('workspace')}
-          className="relative bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-7 rounded-3xl shadow-lg shadow-emerald-700/15 cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[220px]"
+          className="relative bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-5 sm:p-7 rounded-3xl shadow-lg shadow-emerald-700/15 cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[190px] sm:min-h-[220px]"
         >
           {/* Top Row: Title & Icon */}
           <div className="flex items-start justify-between">
@@ -96,7 +96,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
                 See all hospital modules & launch workstations!
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white">
+            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white flex-shrink-0">
               <LayoutGrid className="w-5 h-5" />
             </div>
           </div>
@@ -121,7 +121,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
         {/* Card 2: Datasets / Patients EMR (Yellow Accent) */}
         <div
           onClick={() => onNavigateTab('patients')}
-          className="relative bg-white border border-slate-200/70 p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[220px]"
+          className="relative bg-white border border-slate-200/70 p-5 sm:p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[190px] sm:min-h-[220px]"
         >
           <div className="flex items-start justify-between">
             <div>
@@ -132,7 +132,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
                 Unique UHID directory, clinical histories, and patient records.
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500 flex-shrink-0">
               <Users className="w-5 h-5" />
             </div>
           </div>
@@ -155,7 +155,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
         {/* Card 3: 17 Roles & Governance (Coral/Rose Accent) */}
         <div
           onClick={() => onNavigateTab('roles')}
-          className="relative bg-white border border-slate-200/70 p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[220px]"
+          className="relative bg-white border border-slate-200/70 p-5 sm:p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[190px] sm:min-h-[220px]"
         >
           <div className="flex items-start justify-between">
             <div>
@@ -166,7 +166,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
                 Dynamic role templates, staff assignments, and approval workflows.
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 flex-shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
           </div>
@@ -188,7 +188,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
         {/* Card 4: Clinical & Bed Map (Purple Accent) */}
         <div
           onClick={() => onNavigateTab('wards')}
-          className="relative bg-white border border-slate-200/70 p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[220px]"
+          className="relative bg-white border border-slate-200/70 p-5 sm:p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[190px] sm:min-h-[220px]"
         >
           <div className="flex items-start justify-between">
             <div>
@@ -199,7 +199,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
                 Live floor census, bed turnover, sanitization, and transfers.
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500 flex-shrink-0">
               <Bed className="w-5 h-5" />
             </div>
           </div>
@@ -221,7 +221,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
         {/* Card 5: Billing & Finance (Blue Accent) */}
         <div
           onClick={() => onNavigateTab('billing')}
-          className="relative bg-white border border-slate-200/70 p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[220px]"
+          className="relative bg-white border border-slate-200/70 p-5 sm:p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[190px] sm:min-h-[220px]"
         >
           <div className="flex items-start justify-between">
             <div>
@@ -232,7 +232,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
                 Patient invoices, cash/UPI collections, insurance, and receipts.
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 flex-shrink-0">
               <Receipt className="w-5 h-5" />
             </div>
           </div>
@@ -254,7 +254,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
         {/* Card 6: Pharmacy & Laboratory (Orange Accent) */}
         <div
           onClick={() => onNavigateTab('pharmacy')}
-          className="relative bg-white border border-slate-200/70 p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[220px]"
+          className="relative bg-white border border-slate-200/70 p-5 sm:p-7 rounded-3xl shadow-sm hover:shadow-md cursor-pointer overflow-hidden group hover:scale-[1.01] transition-all flex flex-col justify-between min-h-[190px] sm:min-h-[220px]"
         >
           <div className="flex items-start justify-between">
             <div>
@@ -265,7 +265,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
                 FEFO drug dispensing, expiry tracking, and diagnostic orders.
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500 flex-shrink-0">
               <Pill className="w-5 h-5" />
             </div>
           </div>
@@ -286,7 +286,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
       </div>
 
       {/* Spacious Clean Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-2">
         <div className="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-xs">
           <div className="text-xs font-semibold text-slate-400">Total Registered Patients</div>
           <div className="text-2xl font-extrabold text-slate-900 mt-1">{totalPatients}</div>
