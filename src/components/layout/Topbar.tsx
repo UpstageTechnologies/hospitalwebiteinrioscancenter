@@ -81,26 +81,31 @@ export const Topbar: React.FC<TopbarProps> = ({ onNavigateTab, onToggleMobileMen
               <div className="px-3 py-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                 Multi-Tenant Organization
               </div>
-              {DEFAULT_HOSPITALS.map((hosp) => (
-                <button
-                  key={hosp.id}
-                  onClick={() => {
-                    switchHospital(hosp.id);
-                    setShowHospitalMenu(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-slate-50 transition-colors ${
-                    hosp.id === currentHospital.id ? 'bg-emerald-50 text-emerald-900 font-semibold' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="truncate mr-2">
-                    <div className="truncate font-semibold">{hosp.name}</div>
-                    <div className="text-[10px] text-slate-500 font-normal truncate">{hosp.city} • {hosp.phone}</div>
-                  </div>
-                  {hosp.id === currentHospital.id && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-600 flex-shrink-0"></span>
-                  )}
-                </button>
-              ))}
+              {(() => {
+                const hospitalsList = DEFAULT_HOSPITALS.some(h => h.id === currentHospital.id)
+                  ? DEFAULT_HOSPITALS
+                  : [currentHospital, ...DEFAULT_HOSPITALS];
+                return hospitalsList.map((hosp) => (
+                  <button
+                    key={hosp.id}
+                    onClick={() => {
+                      switchHospital(hosp.id);
+                      setShowHospitalMenu(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-slate-50 transition-colors ${
+                      hosp.id === currentHospital.id ? 'bg-emerald-50 text-emerald-900 font-semibold' : 'text-slate-700'
+                    }`}
+                  >
+                    <div className="truncate mr-2">
+                      <div className="truncate font-semibold">{hosp.name}</div>
+                      <div className="text-[10px] text-slate-500 font-normal truncate">{hosp.city} • {hosp.phone}</div>
+                    </div>
+                    {hosp.id === currentHospital.id && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 flex-shrink-0"></span>
+                    )}
+                  </button>
+                ));
+              })()}
             </div>
           )}
         </div>

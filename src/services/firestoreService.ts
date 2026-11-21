@@ -145,6 +145,12 @@ export class FirestoreHospitalService {
         });
       }
 
+      // ONLY seed dummy demo collections if this is the demo hospital 'hosp-001'!
+      // Original users' hospitals must remain clean without mock/demo records.
+      if (hospitalId !== 'hosp-001') {
+        return;
+      }
+
       // 2. Check if employees already exist
       const empCol = this.getColRef(hospitalId, 'employees');
       const empSnap = await getDocs(query(empCol, limit(1)));

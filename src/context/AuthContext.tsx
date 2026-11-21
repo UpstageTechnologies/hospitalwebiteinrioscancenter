@@ -91,17 +91,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           if (!empData) {
-            // Fallback from default pool
-            empData = DEFAULT_EMPLOYEES.find(e => e.primaryRole === profile.role) || DEFAULT_EMPLOYEES[0];
+            if (hospId === 'hosp-001') {
+              empData = DEFAULT_EMPLOYEES.find(e => e.primaryRole === profile.role) || DEFAULT_EMPLOYEES[0];
+            } else {
+              // Real owner employee for original user
+              const ownerEmpId = profile.employeeId || `emp-${fbUser.uid.slice(0, 8)}`;
+              const ownerEmp: Employee = {
+                id: ownerEmpId,
+                hospitalId: hospId,
+                employeeCode: 'EMP-001',
+                name: profile.name || fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Hospital Owner'),
+                email: fbUser.email || '',
+                phone: '',
+                departmentId: 'dept-admin',
+                departmentName: 'Hospital Administration',
+                designation: profile.role === 'owner' ? 'Hospital Owner / CEO' : 'Staff Member',
+                primaryRole: profile.role || 'owner',
+                additionalRoles: [],
+                status: 'active',
+                joiningDate: new Date().toISOString().split('T')[0],
+                gender: 'Male',
+                employmentType: 'Full-time'
+              };
+              await setDoc(doc(getFirebaseDb(), 'hospitals', hospId, 'employees', ownerEmpId), ownerEmp, { merge: true });
+              empData = ownerEmp;
+            }
           }
 
           setCurrentUser(empData);
           setActiveRole(profile.role || empData.primaryRole || 'owner');
         } catch (err) {
           console.warn('Error loading user profile from Firestore:', err);
-          // Fallback graceful session
-          setCurrentUser(DEFAULT_EMPLOYEES[0]);
-          setActiveRole('owner');
+          if (profile?.hospitalId === 'hosp-001') {
+            setCurrentUser(DEFAULT_EMPLOYEES[0]);
+            setActiveRole('owner');
+          }
         }
       } else {
         setFirebaseUser(null);

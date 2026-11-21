@@ -137,6 +137,7 @@ export class AuthService {
     });
 
     // D. Write to users/{uid}
+    const ownerEmpId = `emp-${uid.slice(0, 8)}`;
     const profileDoc: UserProfileDoc = {
       uid,
       name: params.ownerName.trim(),
@@ -144,13 +145,45 @@ export class AuthService {
       hospitalId,
       role: 'owner',
       status: 'active',
-      employeeId: 'emp-owner-01',
+      employeeId: ownerEmpId,
       createdAt: new Date().toISOString()
     };
     await setDoc(doc(getFirebaseDb(), 'users', uid), {
       ...profileDoc,
       createdAtServer: serverTimestamp()
     });
+
+    // Create real Owner Employee record in hospitals/{hospitalId}/employees/{ownerEmpId}
+    const ownerEmployee: Employee = {
+      id: ownerEmpId,
+      hospitalId,
+      employeeCode: 'EMP-001',
+      name: params.ownerName.trim(),
+      email: params.email.trim(),
+      phone: params.phone.trim(),
+      departmentId: 'dept-admin',
+      departmentName: 'Hospital Administration',
+      designation: 'Hospital Owner / CEO',
+      primaryRole: 'owner',
+      additionalRoles: [],
+      status: 'active',
+      joiningDate: new Date().toISOString().split('T')[0],
+      gender: 'Male',
+      employmentType: 'Full-time',
+      salaryDetails: { basic: 100000, allowances: 20000, deductions: 5000, net: 115000 },
+      attendanceStatus: 'present'
+    };
+    await setDoc(doc(getFirebaseDb(), 'hospitals', hospitalId, 'employees', ownerEmpId), ownerEmployee);
+
+    // Initialize clean department catalog for this new hospital
+    const depts = DEFAULT_DEPARTMENTS.map(d => ({
+      ...d,
+      hospitalId,
+      headDoctorName: params.ownerName.trim()
+    }));
+    for (const d of depts) {
+      await setDoc(doc(getFirebaseDb(), 'hospitals', hospitalId, 'departments', d.id), d);
+    }
 
     // E. Initialize hospital subcollections in Firestore
     await firestoreService.initializeHospitalInFirestore(hospitalId, params.hospitalName, uid);
@@ -211,15 +244,16 @@ export class AuthService {
     // Determine matching staff from default pool or fallback
     const email = firebaseUser.email || '';
     const staffMatch = Object.values(STANDARD_STAFF_ACCOUNTS).find(s => s.email.toLowerCase() === email.toLowerCase()) || fallbackStaff;
+    const isDemo = fallbackHospitalId === 'hosp-001' || (email && email.toLowerCase().endsWith('@upstagehospital.org'));
 
     const newProfile: UserProfileDoc = {
       uid: firebaseUser.uid,
-      name: staffMatch?.name || firebaseUser.displayName || 'Hospital Staff',
+      name: staffMatch?.name || firebaseUser.displayName || (email ? email.split('@')[0] : 'Hospital Owner'),
       email: firebaseUser.email || '',
-      hospitalId: fallbackHospitalId,
-      role: staffMatch?.role || 'doctor',
+      hospitalId: isDemo ? 'hosp-001' : fallbackHospitalId,
+      role: staffMatch?.role || (isDemo ? 'doctor' : 'owner'),
       status: 'active',
-      employeeId: staffMatch?.empId || 'emp-doc-01',
+      employeeId: staffMatch?.empId || `emp-${firebaseUser.uid.slice(0, 8)}`,
       createdAt: new Date().toISOString()
     };
 

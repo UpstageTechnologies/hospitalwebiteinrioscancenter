@@ -103,216 +103,293 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     storageService.initHospital(hospId);
   }, [hospId]);
 
+  const isDemo = hospId === 'hosp-001';
+
   const [departments, setDepartments] = useState<Department[]>(() =>
-    storageService.getCollection<Department>(hospId, 'departments', [])
+    storageService.getCollection<Department>(hospId, 'departments', isDemo ? DEFAULT_DEPARTMENTS : [])
   );
   const [employees, setEmployees] = useState<Employee[]>(() =>
-    storageService.getCollection<Employee>(hospId, 'employees', DEFAULT_EMPLOYEES)
+    storageService.getCollection<Employee>(hospId, 'employees', isDemo ? DEFAULT_EMPLOYEES : [])
   );
   const [roleTemplates, setRoleTemplates] = useState<Record<RoleId, RoleTemplate>>(INITIAL_ROLE_TEMPLATES);
   const [roleRequests, setRoleRequests] = useState<RoleRequest[]>(() =>
-    storageService.getCollection<RoleRequest>(hospId, 'roleRequests', DEFAULT_ROLE_REQUESTS)
+    storageService.getCollection<RoleRequest>(hospId, 'roleRequests', isDemo ? DEFAULT_ROLE_REQUESTS : [])
   );
   const [patients, setPatients] = useState<Patient[]>(() =>
-    storageService.getCollection<Patient>(hospId, 'patients', [])
+    storageService.getCollection<Patient>(hospId, 'patients', isDemo ? DEFAULT_PATIENTS : [])
   );
   const [vitals, setVitals] = useState<VitalSign[]>(() =>
-    storageService.getCollection<VitalSign>(hospId, 'vitals', [])
+    storageService.getCollection<VitalSign>(hospId, 'vitals', isDemo ? DEFAULT_VITALS : [])
   );
   const [appointments, setAppointments] = useState<Appointment[]>(() =>
-    storageService.getCollection<Appointment>(hospId, 'appointments', [])
+    storageService.getCollection<Appointment>(hospId, 'appointments', isDemo ? DEFAULT_APPOINTMENTS : [])
   );
   const [consultations, setConsultations] = useState<ConsultationRecord[]>(() =>
     storageService.getCollection<ConsultationRecord>(hospId, 'consultations', [])
   );
   const [wards, setWards] = useState<Ward[]>(() =>
-    storageService.getCollection<Ward>(hospId, 'wards', [])
+    storageService.getCollection<Ward>(hospId, 'wards', isDemo ? DEFAULT_WARDS : [])
   );
   const [beds, setBeds] = useState<Bed[]>(() =>
-    storageService.getCollection<Bed>(hospId, 'beds', [])
+    storageService.getCollection<Bed>(hospId, 'beds', isDemo ? DEFAULT_BEDS : [])
   );
   const [admissions, setAdmissions] = useState<Admission[]>(() =>
-    storageService.getCollection<Admission>(hospId, 'admissions', [])
+    storageService.getCollection<Admission>(hospId, 'admissions', isDemo ? DEFAULT_ADMISSIONS : [])
   );
   const [medicines, setMedicines] = useState<Medicine[]>(() =>
-    storageService.getCollection<Medicine>(hospId, 'medicines', [])
+    storageService.getCollection<Medicine>(hospId, 'medicines', isDemo ? DEFAULT_MEDICINES : [])
   );
   const [labOrders, setLabOrders] = useState<LabOrder[]>(() =>
-    storageService.getCollection<LabOrder>(hospId, 'labOrders', [])
+    storageService.getCollection<LabOrder>(hospId, 'labOrders', isDemo ? DEFAULT_LAB_ORDERS : [])
   );
   const [radiologyOrders, setRadiologyOrders] = useState<RadiologyOrder[]>(() =>
-    storageService.getCollection<RadiologyOrder>(hospId, 'radiologyOrders', DEFAULT_RADIOLOGY_ORDERS)
+    storageService.getCollection<RadiologyOrder>(hospId, 'radiologyOrders', isDemo ? DEFAULT_RADIOLOGY_ORDERS : [])
   );
   const [expenses, setExpenses] = useState<HospitalExpense[]>(() =>
-    storageService.getCollection<HospitalExpense>(hospId, 'expenses', DEFAULT_EXPENSES)
+    storageService.getCollection<HospitalExpense>(hospId, 'expenses', isDemo ? DEFAULT_EXPENSES : [])
   );
   const [invoices, setInvoices] = useState<Invoice[]>(() =>
-    storageService.getCollection<Invoice>(hospId, 'invoices', [])
+    storageService.getCollection<Invoice>(hospId, 'invoices', isDemo ? DEFAULT_INVOICES : [])
   );
   const [notifications, setNotifications] = useState<HospitalNotification[]>(() =>
-    storageService.getCollection<HospitalNotification>(hospId, 'notifications', [])
+    storageService.getCollection<HospitalNotification>(hospId, 'notifications', isDemo ? DEFAULT_NOTIFICATIONS : [])
   );
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() =>
-    storageService.getCollection<AuditLog>(hospId, 'auditLogs', [])
+    storageService.getCollection<AuditLog>(hospId, 'auditLogs', isDemo ? DEFAULT_AUDIT_LOGS : [])
   );
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() =>
-    storageService.getCollection<AttendanceRecord>(hospId, 'attendance', [])
+    storageService.getCollection<AttendanceRecord>(hospId, 'attendance', isDemo ? DEFAULT_ATTENDANCE : [])
   );
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>(() =>
-    storageService.getCollection<PayrollRecord>(hospId, 'payroll', [])
+    storageService.getCollection<PayrollRecord>(hospId, 'payroll', isDemo ? DEFAULT_PAYROLL : [])
   );
 
   useEffect(() => {
     storageService.initHospital(hospId);
-    setDepartments(storageService.getCollection(hospId, 'departments', []));
-    setEmployees(storageService.getCollection(hospId, 'employees', []));
-    setRoleRequests(storageService.getCollection(hospId, 'roleRequests', []));
-    setPatients(storageService.getCollection(hospId, 'patients', []));
-    setVitals(storageService.getCollection(hospId, 'vitals', []));
-    setAppointments(storageService.getCollection(hospId, 'appointments', []));
+    const isDemoHospital = hospId === 'hosp-001';
+    setDepartments(storageService.getCollection(hospId, 'departments', isDemoHospital ? DEFAULT_DEPARTMENTS : []));
+    setEmployees(storageService.getCollection(hospId, 'employees', isDemoHospital ? DEFAULT_EMPLOYEES : []));
+    setRoleRequests(storageService.getCollection(hospId, 'roleRequests', isDemoHospital ? DEFAULT_ROLE_REQUESTS : []));
+    setPatients(storageService.getCollection(hospId, 'patients', isDemoHospital ? DEFAULT_PATIENTS : []));
+    setVitals(storageService.getCollection(hospId, 'vitals', isDemoHospital ? DEFAULT_VITALS : []));
+    setAppointments(storageService.getCollection(hospId, 'appointments', isDemoHospital ? DEFAULT_APPOINTMENTS : []));
     setConsultations(storageService.getCollection(hospId, 'consultations', []));
-    setWards(storageService.getCollection(hospId, 'wards', []));
-    setBeds(storageService.getCollection(hospId, 'beds', []));
-    setAdmissions(storageService.getCollection(hospId, 'admissions', []));
-    setMedicines(storageService.getCollection(hospId, 'medicines', []));
-    setLabOrders(storageService.getCollection(hospId, 'labOrders', []));
-    setInvoices(storageService.getCollection(hospId, 'invoices', []));
-    setNotifications(storageService.getCollection(hospId, 'notifications', []));
-    setAuditLogs(storageService.getCollection(hospId, 'auditLogs', []));
-    setAttendanceRecords(storageService.getCollection(hospId, 'attendance', []));
-    setPayrollRecords(storageService.getCollection(hospId, 'payroll', []));
+    setWards(storageService.getCollection(hospId, 'wards', isDemoHospital ? DEFAULT_WARDS : []));
+    setBeds(storageService.getCollection(hospId, 'beds', isDemoHospital ? DEFAULT_BEDS : []));
+    setAdmissions(storageService.getCollection(hospId, 'admissions', isDemoHospital ? DEFAULT_ADMISSIONS : []));
+    setMedicines(storageService.getCollection(hospId, 'medicines', isDemoHospital ? DEFAULT_MEDICINES : []));
+    setLabOrders(storageService.getCollection(hospId, 'labOrders', isDemoHospital ? DEFAULT_LAB_ORDERS : []));
+    setRadiologyOrders(storageService.getCollection(hospId, 'radiologyOrders', isDemoHospital ? DEFAULT_RADIOLOGY_ORDERS : []));
+    setExpenses(storageService.getCollection(hospId, 'expenses', isDemoHospital ? DEFAULT_EXPENSES : []));
+    setInvoices(storageService.getCollection(hospId, 'invoices', isDemoHospital ? DEFAULT_INVOICES : []));
+    setNotifications(storageService.getCollection(hospId, 'notifications', isDemoHospital ? DEFAULT_NOTIFICATIONS : []));
+    setAuditLogs(storageService.getCollection(hospId, 'auditLogs', isDemoHospital ? DEFAULT_AUDIT_LOGS : []));
+    setAttendanceRecords(storageService.getCollection(hospId, 'attendance', isDemoHospital ? DEFAULT_ATTENDANCE : []));
+    setPayrollRecords(storageService.getCollection(hospId, 'payroll', isDemoHospital ? DEFAULT_PAYROLL : []));
 
     // Real-time Firestore Subscriptions
     const unsubDepts = firestoreService.subscribeToCollection<Department>(hospId, 'departments', (data) => {
-      if (data && data.length > 0) {
-        setDepartments(data);
-        storageService.saveCollection(hospId, 'departments', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setDepartments(data);
+          storageService.saveCollection(hospId, 'departments', data);
+        }
       }
     });
 
     const unsubEmps = firestoreService.subscribeToCollection<Employee>(hospId, 'employees', (data) => {
-      if (data && data.length > 0) {
-        setEmployees(data);
-        storageService.saveCollection(hospId, 'employees', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setEmployees(data);
+          storageService.saveCollection(hospId, 'employees', data);
+        }
       }
     });
 
     const unsubReqs = firestoreService.subscribeToCollection<RoleRequest>(hospId, 'roleRequests', (data) => {
-      if (data && data.length > 0) {
-        setRoleRequests(data);
-        storageService.saveCollection(hospId, 'roleRequests', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setRoleRequests(data);
+          storageService.saveCollection(hospId, 'roleRequests', data);
+        }
       }
     });
 
     const unsubPatients = firestoreService.subscribeToCollection<Patient>(hospId, 'patients', (data) => {
-      if (data && data.length > 0) {
-        setPatients(data);
-        storageService.saveCollection(hospId, 'patients', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setPatients(data);
+          storageService.saveCollection(hospId, 'patients', data);
+        }
       }
     });
 
     const unsubVitals = firestoreService.subscribeToCollection<VitalSign>(hospId, 'vitals', (data) => {
-      if (data && data.length > 0) {
-        setVitals(data);
-        storageService.saveCollection(hospId, 'vitals', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setVitals(data);
+          storageService.saveCollection(hospId, 'vitals', data);
+        }
       }
     });
 
     const unsubApts = firestoreService.subscribeToCollection<Appointment>(hospId, 'appointments', (data) => {
-      if (data && data.length > 0) {
-        setAppointments(data);
-        storageService.saveCollection(hospId, 'appointments', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setAppointments(data);
+          storageService.saveCollection(hospId, 'appointments', data);
+        }
       }
     });
 
     const unsubCons = firestoreService.subscribeToCollection<ConsultationRecord>(hospId, 'consultations', (data) => {
-      if (data && data.length > 0) {
+      if (data) {
         setConsultations(data);
         storageService.saveCollection(hospId, 'consultations', data);
       }
     });
 
     const unsubWards = firestoreService.subscribeToCollection<Ward>(hospId, 'wards', (data) => {
-      if (data && data.length > 0) {
-        setWards(data);
-        storageService.saveCollection(hospId, 'wards', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setWards(data);
+          storageService.saveCollection(hospId, 'wards', data);
+        }
       }
     });
 
     const unsubBeds = firestoreService.subscribeToCollection<Bed>(hospId, 'beds', (data) => {
-      if (data && data.length > 0) {
-        setBeds(data);
-        storageService.saveCollection(hospId, 'beds', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setBeds(data);
+          storageService.saveCollection(hospId, 'beds', data);
+        }
       }
     });
 
     const unsubAdms = firestoreService.subscribeToCollection<Admission>(hospId, 'admissions', (data) => {
-      if (data && data.length > 0) {
-        setAdmissions(data);
-        storageService.saveCollection(hospId, 'admissions', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setAdmissions(data);
+          storageService.saveCollection(hospId, 'admissions', data);
+        }
       }
     });
 
     const unsubMeds = firestoreService.subscribeToCollection<Medicine>(hospId, 'medicines', (data) => {
-      if (data && data.length > 0) {
-        setMedicines(data);
-        storageService.saveCollection(hospId, 'medicines', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setMedicines(data);
+          storageService.saveCollection(hospId, 'medicines', data);
+        }
       }
     });
 
     const unsubLabs = firestoreService.subscribeToCollection<LabOrder>(hospId, 'labOrders', (data) => {
-      if (data && data.length > 0) {
-        setLabOrders(data);
-        storageService.saveCollection(hospId, 'labOrders', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setLabOrders(data);
+          storageService.saveCollection(hospId, 'labOrders', data);
+        }
       }
     });
 
     const unsubRads = firestoreService.subscribeToCollection<RadiologyOrder>(hospId, 'radiologyOrders', (data) => {
-      if (data && data.length > 0) {
-        setRadiologyOrders(data);
-        storageService.saveCollection(hospId, 'radiologyOrders', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setRadiologyOrders(data);
+          storageService.saveCollection(hospId, 'radiologyOrders', data);
+        }
       }
     });
 
     const unsubExpenses = firestoreService.subscribeToCollection<HospitalExpense>(hospId, 'expenses', (data) => {
-      if (data && data.length > 0) {
-        setExpenses(data);
-        storageService.saveCollection(hospId, 'expenses', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setExpenses(data);
+          storageService.saveCollection(hospId, 'expenses', data);
+        }
       }
     });
 
     const unsubBills = firestoreService.subscribeToCollection<Invoice>(hospId, 'bills', (data) => {
-      if (data && data.length > 0) {
-        setInvoices(data);
-        storageService.saveCollection(hospId, 'invoices', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setInvoices(data);
+          storageService.saveCollection(hospId, 'invoices', data);
+        }
       }
     });
 
     const unsubNotifs = firestoreService.subscribeToCollection<HospitalNotification>(hospId, 'notifications', (data) => {
-      if (data && data.length > 0) {
-        setNotifications(data);
-        storageService.saveCollection(hospId, 'notifications', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setNotifications(data);
+          storageService.saveCollection(hospId, 'notifications', data);
+        }
       }
     });
 
     const unsubLogs = firestoreService.subscribeToCollection<AuditLog>(hospId, 'auditLogs', (data) => {
-      if (data && data.length > 0) {
-        setAuditLogs(data);
-        storageService.saveCollection(hospId, 'auditLogs', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setAuditLogs(data);
+          storageService.saveCollection(hospId, 'auditLogs', data);
+        }
       }
     });
 
     const unsubAtt = firestoreService.subscribeToCollection<AttendanceRecord>(hospId, 'attendance', (data) => {
-      if (data && data.length > 0) {
-        setAttendanceRecords(data);
-        storageService.saveCollection(hospId, 'attendance', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setAttendanceRecords(data);
+          storageService.saveCollection(hospId, 'attendance', data);
+        }
       }
     });
 
     const unsubPay = firestoreService.subscribeToCollection<PayrollRecord>(hospId, 'payroll', (data) => {
-      if (data && data.length > 0) {
-        setPayrollRecords(data);
-        storageService.saveCollection(hospId, 'payroll', data);
+      if (data) {
+        if (data.length === 0 && isDemoHospital) {
+          // keep demo default
+        } else {
+          setPayrollRecords(data);
+          storageService.saveCollection(hospId, 'payroll', data);
+        }
       }
     });
 

@@ -1385,27 +1385,50 @@ class HospitalStorageService {
     }
   }
 
-  // Initializing Hospital Data
+  // Initializing Hospital Data (Demo hospital gets mock seed; original users get clean state)
   public initHospital(hospitalId: string): void {
     if (!localStorage.getItem(this.getStorageKey(hospitalId, 'initialized'))) {
-      this.saveCollection(hospitalId, 'departments', DEFAULT_DEPARTMENTS.filter(d => d.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'employees', DEFAULT_EMPLOYEES.filter(e => e.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'roleRequests', DEFAULT_ROLE_REQUESTS.filter(r => r.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'patients', DEFAULT_PATIENTS.filter(p => p.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'vitals', DEFAULT_VITALS.filter(v => v.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'appointments', DEFAULT_APPOINTMENTS.filter(a => a.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'wards', DEFAULT_WARDS.filter(w => w.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'beds', DEFAULT_BEDS.filter(b => b.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'admissions', DEFAULT_ADMISSIONS.filter(a => a.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'medicines', DEFAULT_MEDICINES.filter(m => m.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'labOrders', DEFAULT_LAB_ORDERS.filter(l => l.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'radiologyOrders', DEFAULT_RADIOLOGY_ORDERS.filter(r => r.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'expenses', DEFAULT_EXPENSES.filter(ex => ex.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'invoices', DEFAULT_INVOICES.filter(i => i.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'notifications', DEFAULT_NOTIFICATIONS.filter(n => n.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'auditLogs', DEFAULT_AUDIT_LOGS.filter(a => a.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'attendance', DEFAULT_ATTENDANCE.filter(a => a.hospitalId === hospitalId || hospitalId === 'hosp-001'));
-      this.saveCollection(hospitalId, 'payroll', DEFAULT_PAYROLL.filter(p => p.hospitalId === hospitalId || hospitalId === 'hosp-001'));
+      if (hospitalId === 'hosp-001') {
+        // DEMO hospital gets full demo dataset
+        this.saveCollection(hospitalId, 'departments', DEFAULT_DEPARTMENTS);
+        this.saveCollection(hospitalId, 'employees', DEFAULT_EMPLOYEES);
+        this.saveCollection(hospitalId, 'roleRequests', DEFAULT_ROLE_REQUESTS);
+        this.saveCollection(hospitalId, 'patients', DEFAULT_PATIENTS);
+        this.saveCollection(hospitalId, 'vitals', DEFAULT_VITALS);
+        this.saveCollection(hospitalId, 'appointments', DEFAULT_APPOINTMENTS);
+        this.saveCollection(hospitalId, 'wards', DEFAULT_WARDS);
+        this.saveCollection(hospitalId, 'beds', DEFAULT_BEDS);
+        this.saveCollection(hospitalId, 'admissions', DEFAULT_ADMISSIONS);
+        this.saveCollection(hospitalId, 'medicines', DEFAULT_MEDICINES);
+        this.saveCollection(hospitalId, 'labOrders', DEFAULT_LAB_ORDERS);
+        this.saveCollection(hospitalId, 'radiologyOrders', DEFAULT_RADIOLOGY_ORDERS);
+        this.saveCollection(hospitalId, 'expenses', DEFAULT_EXPENSES);
+        this.saveCollection(hospitalId, 'invoices', DEFAULT_INVOICES);
+        this.saveCollection(hospitalId, 'notifications', DEFAULT_NOTIFICATIONS);
+        this.saveCollection(hospitalId, 'auditLogs', DEFAULT_AUDIT_LOGS);
+        this.saveCollection(hospitalId, 'attendance', DEFAULT_ATTENDANCE);
+        this.saveCollection(hospitalId, 'payroll', DEFAULT_PAYROLL);
+      } else {
+        // ORIGINAL user hospitals: clean state with empty collections (no dummy data)
+        this.saveCollection(hospitalId, 'departments', DEFAULT_DEPARTMENTS.map(d => ({ ...d, hospitalId })));
+        this.saveCollection(hospitalId, 'employees', []);
+        this.saveCollection(hospitalId, 'roleRequests', []);
+        this.saveCollection(hospitalId, 'patients', []);
+        this.saveCollection(hospitalId, 'vitals', []);
+        this.saveCollection(hospitalId, 'appointments', []);
+        this.saveCollection(hospitalId, 'wards', []);
+        this.saveCollection(hospitalId, 'beds', []);
+        this.saveCollection(hospitalId, 'admissions', []);
+        this.saveCollection(hospitalId, 'medicines', []);
+        this.saveCollection(hospitalId, 'labOrders', []);
+        this.saveCollection(hospitalId, 'radiologyOrders', []);
+        this.saveCollection(hospitalId, 'expenses', []);
+        this.saveCollection(hospitalId, 'invoices', []);
+        this.saveCollection(hospitalId, 'notifications', []);
+        this.saveCollection(hospitalId, 'auditLogs', []);
+        this.saveCollection(hospitalId, 'attendance', []);
+        this.saveCollection(hospitalId, 'payroll', []);
+      }
       localStorage.setItem(this.getStorageKey(hospitalId, 'initialized'), 'true');
     }
   }
