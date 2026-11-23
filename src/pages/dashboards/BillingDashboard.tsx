@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
-import type { Invoice, BillItem, PaymentMethod } from '../../types/billing';
+import type { Invoice, PaymentMethod } from '../../types/billing';
 import {
   Receipt,
   Plus,
@@ -13,146 +13,61 @@ import {
   Filter,
   Printer,
   X,
-  FileText
+  FileText,
+  Building2,
+  Check,
+  Stethoscope,
+  Pill,
+  Microscope,
+  Bed
 } from 'lucide-react';
 
 export const BillingDashboard: React.FC = () => {
-  const { invoices, patients, createInvoice, recordPayment, updateInvoice } = useHospital();
-  const { currentUser } = useAuth();
+  const { currentHospital, currentUser } = useAuth();
+  const { invoices, recordInvoicePayment } = useHospital();
 
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'partial' | 'paid'>('all');
 
-  // Edit / Adjust Invoice State
-  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
-  const [editDiscount, setEditDiscount] = useState('0');
-  const [editItemDesc, setEditItemDesc] = useState('');
-  const [editItemPrice, setEditItemPrice] = useState('');
+  // Selected Invoice for Payment
+  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
+  const [payAmount, setPayAmount] = useState<string>('');
+  const [payMethod, setPayMethod] = useState<PaymentMethod>('upi');
+  const [payRef, setPayRef] = useState<string>('');
 
-  const handleStartEditInvoice = (inv: Invoice) => {
-    setEditingInvoice(inv);
-    setEditDiscount(String(inv.discountAmount || 0));
-    setEditItemDesc('');
-    setEditItemPrice('');
+  // Selected Invoice for Printable Receipt
+  const [viewingReceipt, setViewingReceipt] = useState<Invoice | null>(null);
+
+  const handleOpenPayment = (inv: Invoice) => {
+    setPayingInvoice(inv);
+    setPayAmount(String(inv.balanceDue || inv.totalAmount));
+    setPayMethod('upi');
+    setPayRef(`TXN-${Date.now().toString().slice(-6)}`);
   };
 
-  const handleSaveInvoiceEdit = (e: React.FormEvent) => {
+  const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingInvoice) return;
+    if (!payingInvoice) return;
 
-    let updatedItems = [...editingInvoice.items];
-    const newPrice = parseFloat(editItemPrice);
-    if (editItemDesc.trim() && newPrice && newPrice > 0) {
-      updatedItems.push({
-        id: `item-${Date.now()}`,
-        description: editItemDesc.trim(),
-        category: 'Procedure',
-        quantity: 1,
-        unitPrice: newPrice,
-        total: newPrice
-      });
-    }
+    const amount = parseFloat(payAmount) || 0;
+    if (amount <= 0) return;
 
-    const subtotal = updatedItems.reduce((sum, item) => sum + item.total, 0);
-    const discountAmount = parseFloat(editDiscount) || 0;
-    const taxable = Math.max(0, subtotal - discountAmount);
-    const taxAmount = Math.round(taxable * 0.05);
-    const totalAmount = taxable + taxAmount;
-
-    updateInvoice(editingInvoice.id, {
-      items: updatedItems,
-      subtotal,
-      discountAmount,
-      taxAmount,
-      totalAmount
-    });
-
-    setEditingInvoice(null);
+    await recordInvoicePayment(payingInvoice.id, amount, payMethod, payRef);
+    setPayingInvoice(null);
   };
 
-  // New Invoice Form
-  const [selectedPatientId, setSelectedPatientId] = useState('');
-  const [invoiceType, setInvoiceType] = useState<Invoice['invoiceType']>('OPD');
-  const [items, setItems] = useState<BillItem[]>([
-    { id: '1', description: 'Consultation Charges', category: 'Consultation', quantity: 1, unitPrice: 1200, total: 1200 }
-  ]);
-  const [discount, setDiscount] = useState('0');
+  const filteredInvoices = invoices.filter(inv => {
+    const q = searchTerm.toLowerCase();
+    const matchSearch = inv.patientName.toLowerCase().includes(q) ||
+      inv.patientUhid.toLowerCase().includes(q) ||
+      inv.invoiceNumber.toLowerCase().includes(q);
+    const matchStatus = statusFilter === 'all' || inv.paymentStatus === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
-  // Payment Recording Form
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
-  const [transactionRef, setTransactionRef] = useState('');
-
-  const totalBilled = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const totalCollected = invoices.reduce((sum, inv) => sum + inv.amountPaid, 0);
-  const totalOutstanding = invoices.reduce((sum, inv) => sum + Math.max(0, inv.balanceDue), 0);
-
-  const handleAddItem = () => {
-    setItems([
-      ...items,
-      {
-        id: String(Date.now()),
-        description: 'Diagnostic / Procedure Fee',
-        category: 'Procedure',
-        quantity: 1,
-        unitPrice: 500,
-        total: 500
-      }
-    ]);
-  };
-
-  const handleRemoveItem = (id: string) => {
-    setItems(items.filter(i => i.id !== id));
-  };
-
-  const handleCreateInvoice = (e: React.FormEvent) => {
-    e.preventDefault();
-    const pat = patients.find(p => p.id === selectedPatientId);
-    if (!pat || items.length === 0) return;
-
-    const subtotal = items.reduce((sum, i) => sum + i.total, 0);
-    const disc = parseFloat(discount) || 0;
-    const tax = Math.round((subtotal - disc) * 0.05); // 5% tax
-    const totalAmount = subtotal - disc + tax;
-
-    createInvoice({
-      invoiceType,
-      patientId: pat.id,
-      patientName: pat.name,
-      patientUhid: pat.uhid,
-      patientPhone: pat.phone,
-      items,
-      subtotal,
-      discountAmount: disc,
-      taxAmount: tax,
-      totalAmount,
-      amountPaid: 0,
-      balanceDue: totalAmount,
-      paymentStatus: 'unpaid',
-      paymentMethod: 'cash',
-      createdByStaffName: currentUser?.name || 'Billing Staff'
-    });
-
-    setShowNewModal(false);
-  };
-
-  const handleRecordPaymentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedInvoice || !paymentAmount) return;
-
-    recordPayment(
-      selectedInvoice.id,
-      parseFloat(paymentAmount),
-      paymentMethod,
-      transactionRef
-    );
-
-    setShowPaymentModal(false);
-    setSelectedInvoice(null);
-    setPaymentAmount('');
-    setTransactionRef('');
-  };
+  const totalBilled = invoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
+  const totalCollected = invoices.reduce((sum, i) => sum + (i.amountPaid || 0), 0);
+  const totalOutstanding = invoices.reduce((sum, i) => sum + (i.balanceDue || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -160,296 +75,289 @@ export const BillingDashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-indigo-600" />
-            Billing Desk, Invoicing & Cashier Settlement
+            <Receipt className="w-5 h-5 text-emerald-600" />
+            Unified Patient Billing & Payment Settlements
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            OPD/IPD Invoices • Multi-Mode Collections (UPI/Card/Cash/TPA) • Tax Receipts
+            Consolidated Invoice (Doctor, Pharmacy, Laboratory, Inpatient Ward) • Cash, Card, UPI, Insurance Settlements
           </p>
         </div>
 
-        <button
-          onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-xs transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Generate New Invoice
-        </button>
+        {/* Status Filters */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
+          {[
+            { id: 'all', label: 'All Invoices' },
+            { id: 'unpaid', label: 'Unpaid' },
+            { id: 'partial', label: 'Partially Paid' },
+            { id: 'paid', label: 'Fully Paid' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id as any)}
+              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                statusFilter === tab.id ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs">
-          <div className="text-xs font-semibold text-slate-500">Total Invoiced Amount</div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-1">₹{totalBilled.toLocaleString()}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5">{invoices.length} Invoices generated</div>
+      {/* Revenue & Financial Summary Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Billed Charges</div>
+            <div className="text-2xl font-black text-slate-900 mt-1">₹{totalBilled.toLocaleString()}</div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
+            <Receipt className="w-5 h-5" />
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs">
-          <div className="text-xs font-semibold text-slate-500">Collected Revenue</div>
-          <div className="text-2xl font-extrabold text-emerald-600 mt-1">₹{totalCollected.toLocaleString()}</div>
-          <div className="text-[11px] text-emerald-600 mt-0.5">Settled in hospital accounts</div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Payments Collected</div>
+            <div className="text-2xl font-black text-emerald-600 mt-1">₹{totalCollected.toLocaleString()}</div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs">
-          <div className="text-xs font-semibold text-slate-500">Outstanding Balance</div>
-          <div className="text-2xl font-extrabold text-amber-600 mt-1">₹{totalOutstanding.toLocaleString()}</div>
-          <div className="text-[11px] text-amber-600 mt-0.5">Pending collections & insurance</div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Outstanding Balance Due</div>
+            <div className="text-2xl font-black text-amber-600 mt-1">₹{totalOutstanding.toLocaleString()}</div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search invoice by Patient name, UHID, Invoice number (e.g. INV-2026-001)..."
+            className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none"
+          />
+        </div>
+        <div className="text-xs font-semibold text-slate-500 px-2 whitespace-nowrap">
+          {filteredInvoices.length} Invoices Found
         </div>
       </div>
 
       {/* Invoices Table */}
-      <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Patient Invoices</h3>
-          <span className="text-xs text-slate-400">{invoices.length} Records</span>
-        </div>
-
-        <div className="overflow-x-auto -mx-2 sm:mx-0">
-          <table className="w-full text-left text-xs min-w-[620px]">
-            <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
               <tr>
-                <th className="p-3 font-semibold">Invoice #</th>
-                <th className="p-3 font-semibold">Patient</th>
-                <th className="p-3 font-semibold">Type</th>
-                <th className="p-3 font-semibold">Amount</th>
-                <th className="p-3 font-semibold">Paid</th>
-                <th className="p-3 font-semibold">Balance</th>
-                <th className="p-3 font-semibold">Status</th>
-                <th className="p-3 text-right font-semibold">Action</th>
+                <th className="py-3 px-4">Invoice #</th>
+                <th className="py-3 px-4">Patient / UHID</th>
+                <th className="py-3 px-4">Departments Consolidated</th>
+                <th className="py-3 px-4">Total Amount</th>
+                <th className="py-3 px-4">Amount Paid</th>
+                <th className="py-3 px-4">Balance Due</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {invoices.map((inv) => {
-                const statusBadges = {
-                  paid: 'bg-emerald-100 text-emerald-800',
-                  partial: 'bg-amber-100 text-amber-800',
-                  unpaid: 'bg-rose-100 text-rose-800',
-                  refunded: 'bg-slate-100 text-slate-600'
-                };
+              {filteredInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                    No unified invoices matching your filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredInvoices.map(inv => {
+                  const hasDoctor = inv.items?.some(i => i.department === 'doctor' || i.category === 'Consultation' || i.category === 'Procedure');
+                  const hasPharmacy = inv.items?.some(i => i.department === 'pharmacy' || i.category === 'Pharmacy');
+                  const hasLab = inv.items?.some(i => i.department === 'laboratory' || i.category === 'Lab Test');
+                  const hasWard = inv.items?.some(i => i.department === 'ward' || i.category === 'Bed Charges');
 
-                return (
-                  <tr key={inv.id} className="hover:bg-slate-50/50">
-                    <td className="p-3 font-bold text-slate-900">{inv.invoiceNumber}</td>
-                    <td className="p-3">
-                      <div className="font-semibold text-slate-800">{inv.patientName}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{inv.patientUhid}</div>
-                    </td>
-                    <td className="p-3">
-                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium text-[10px]">
-                        {inv.invoiceType}
-                      </span>
-                    </td>
-                    <td className="p-3 font-extrabold text-slate-900">₹{inv.totalAmount.toLocaleString()}</td>
-                    <td className="p-3 text-emerald-600 font-semibold">₹{inv.amountPaid.toLocaleString()}</td>
-                    <td className="p-3 text-amber-600 font-semibold">₹{Math.max(0, inv.balanceDue).toLocaleString()}</td>
-                    <td className="p-3">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${statusBadges[inv.paymentStatus]}`}>
-                        {inv.paymentStatus}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleStartEditInvoice(inv)}
-                          className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 transition-colors"
-                        >
-                          Adjust
-                        </button>
-                        {inv.paymentStatus !== 'paid' ? (
+                  return (
+                    <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                        {inv.invoiceNumber}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900">{inv.patientName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{inv.patientUhid}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {hasDoctor && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700">
+                              <Stethoscope className="w-2.5 h-2.5" /> Doctor
+                            </span>
+                          )}
+                          {hasPharmacy && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700">
+                              <Pill className="w-2.5 h-2.5" /> Pharmacy
+                            </span>
+                          )}
+                          {hasLab && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700">
+                              <Microscope className="w-2.5 h-2.5" /> Lab
+                            </span>
+                          )}
+                          {hasWard && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-50 text-cyan-700">
+                              <Bed className="w-2.5 h-2.5" /> Ward
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                        ₹{inv.totalAmount?.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-emerald-600">
+                        ₹{inv.amountPaid?.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-amber-700">
+                        ₹{inv.balanceDue?.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          inv.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          inv.paymentStatus === 'partial' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {inv.paymentStatus.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => {
-                              setSelectedInvoice(inv);
-                              setPaymentAmount(String(inv.balanceDue));
-                              setShowPaymentModal(true);
-                            }}
-                            className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded shadow-xs transition-colors"
+                            onClick={() => setViewingReceipt(inv)}
+                            className="px-2.5 py-1 text-xs font-semibold border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg flex items-center gap-1"
                           >
-                            Collect
+                            <Printer className="w-3 h-3" /> View Receipt
                           </button>
-                        ) : (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            Settled
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+
+                          {inv.paymentStatus !== 'paid' && (
+                            <button
+                              onClick={() => handleOpenPayment(inv)}
+                              className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs flex items-center gap-1"
+                            >
+                              <CreditCard className="w-3 h-3" /> Collect Payment
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* MODAL: GENERATE INVOICE */}
-      {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+      {/* COLLECT PAYMENT MODAL */}
+      {payingInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-100 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Generate Patient Bill / Invoice</h3>
-              <button onClick={() => setShowNewModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Record Payment Settlement</h3>
+                <p className="text-xs text-slate-500">{payingInvoice.patientName} • Invoice #{payingInvoice.invoiceNumber}</p>
+              </div>
+              <button onClick={() => setPayingInvoice(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleCreateInvoice} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Patient</label>
-                <select
-                  value={selectedPatientId}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
-                  className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-slate-50 outline-none"
-                  required
-                >
-                  <option value="">-- Choose Patient --</option>
-                  {patients.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.uhid}) - {p.phone}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Billing Type</label>
-                <select
-                  value={invoiceType}
-                  onChange={(e) => setInvoiceType(e.target.value as any)}
-                  className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-slate-50 outline-none"
-                >
-                  <option value="OPD">OPD Consultation & Care</option>
-                  <option value="IPD">Inpatient Bed & Procedures</option>
-                  <option value="Laboratory">Laboratory Diagnostics</option>
-                  <option value="Pharmacy">Pharmacy Dispense</option>
-                </select>
-              </div>
-
-              {/* Items */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">Billable Line Items</span>
-                  <button type="button" onClick={handleAddItem} className="text-xs text-indigo-600 font-semibold hover:underline">
-                    + Add Item
-                  </button>
+            <form onSubmit={handleConfirmPayment} className="space-y-4 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <div className="text-slate-500 font-medium">Total Bill Amount:</div>
+                  <div className="font-extrabold text-slate-900">₹{payingInvoice.totalAmount}</div>
                 </div>
-                {items.map((item, idx) => (
-                  <div key={item.id} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={item.description}
-                      onChange={(e) => {
-                        const updated = [...items];
-                        updated[idx].description = e.target.value;
-                        setItems(updated);
-                      }}
-                      className="flex-1 text-xs p-2 rounded border border-slate-200 bg-slate-50"
-                      placeholder="Item description"
-                      required
-                    />
-                    <input
-                      type="number"
-                      value={item.unitPrice}
-                      onChange={(e) => {
-                        const price = parseFloat(e.target.value) || 0;
-                        const updated = [...items];
-                        updated[idx].unitPrice = price;
-                        updated[idx].total = price * updated[idx].quantity;
-                        setItems(updated);
-                      }}
-                      className="w-24 text-xs p-2 rounded border border-slate-200 bg-slate-50 text-right font-bold"
-                      placeholder="Amount"
-                      required
-                    />
-                    {items.length > 1 && (
-                      <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-rose-500 p-1">
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowNewModal(false)}
-                  className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-xs"
-                >
-                  Issue Invoice
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: COLLECT PAYMENT */}
-      {showPaymentModal && selectedInvoice && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Record Payment & Settle Invoice</h3>
-              <button onClick={() => setShowPaymentModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-
-            <form onSubmit={handleRecordPaymentSubmit} className="space-y-4 mt-4">
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
-                <div className="text-slate-500">Invoice: <strong className="text-slate-800">{selectedInvoice.invoiceNumber}</strong></div>
-                <div className="text-slate-500">Patient: <strong className="text-slate-800">{selectedInvoice.patientName}</strong></div>
-                <div className="text-slate-500">Total Billed: ₹{selectedInvoice.totalAmount} • Remaining: <strong className="text-amber-700">₹{selectedInvoice.balanceDue}</strong></div>
+                <div>
+                  <div className="text-slate-500 font-medium">Current Balance Due:</div>
+                  <div className="font-extrabold text-amber-700">₹{payingInvoice.balanceDue}</div>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Amount to Collect (₹) *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Payment Amount to Collect (₹) *
+                </label>
                 <input
                   type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-slate-50 font-bold text-emerald-800 outline-none"
                   required
+                  min="1"
+                  max={payingInvoice.balanceDue}
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-900 outline-none"
                 />
+                <div className="text-[10px] text-slate-400 mt-1">
+                  Supports full settlement or partial payments. Remaining balance is automatically recomputed.
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Method</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-slate-50 outline-none capitalize"
-                >
-                  <option value="upi">UPI / QR Code</option>
-                  <option value="cash">Cash Settlement</option>
-                  <option value="card">Debit / Credit Card POS</option>
-                  <option value="insurance">Insurance / TPA Claim</option>
-                  <option value="bank_transfer">Bank NEFT / RTGS</option>
-                </select>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Payment Channel / Method *
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { id: 'upi', label: 'UPI / QR' },
+                    { id: 'card', label: 'Card' },
+                    { id: 'cash', label: 'Cash' },
+                    { id: 'insurance', label: 'Insurance' }
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setPayMethod(m.id as any)}
+                      className={`py-2 px-2 rounded-xl border font-bold text-center text-xs transition-all ${
+                        payMethod === m.id
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Reference / Transaction ID</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Transaction / Reference ID
+                </label>
                 <input
                   type="text"
-                  value={transactionRef}
-                  onChange={(e) => setTransactionRef(e.target.value)}
-                  placeholder="e.g. UPI/2611200921/8892 or Bank UTR"
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-slate-50 outline-none font-mono"
+                  value={payRef}
+                  onChange={(e) => setPayRef(e.target.value)}
+                  placeholder="e.g. UPI-REF-99210 or Bank Auth Code"
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setShowPaymentModal(false)}
-                  className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  onClick={() => setPayingInvoice(null)}
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs"
                 >
                   Confirm & Print Receipt
                 </button>
@@ -459,90 +367,113 @@ export const BillingDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: EDIT / ADJUST INVOICE */}
-      {editingInvoice && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200/80 space-y-4 animate-in fade-in zoom-in-95 duration-100 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Adjust / Edit Patient Bill</h3>
-                <p className="text-xs text-slate-400">{editingInvoice.invoiceNumber} • {editingInvoice.patientName} ({editingInvoice.patientUhid})</p>
+      {/* VIEW & PRINT OFFICIAL INVOICE RECEIPT MODAL */}
+      {viewingReceipt && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-100 space-y-5 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
+                  UP
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">{currentHospital.name}</h3>
+                  <p className="text-[11px] text-slate-500">Official Consolidated Medical Bill & Receipt</p>
+                </div>
               </div>
-              <button onClick={() => setEditingInvoice(null)} className="text-slate-400 hover:text-slate-600 p-1">
+              <button onClick={() => setViewingReceipt(null)} className="text-slate-400 hover:text-slate-600 p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveInvoiceEdit} className="space-y-4 text-xs">
-              {/* Existing Items */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Current Line Items</span>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {editingInvoice.items.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                      <div>
-                        <div className="font-semibold text-slate-800">{item.description}</div>
-                        <div className="text-[10px] text-slate-400">{item.category} • Qty {item.quantity}</div>
-                      </div>
-                      <span className="font-bold text-slate-900">₹{item.total.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Add New Line Item */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">+ Add Extra Charge / Procedure</span>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-2">
-                    <input
-                      type="text"
-                      placeholder="e.g. ECG Recording / Dressing"
-                      value={editItemDesc}
-                      onChange={(e) => setEditItemDesc(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-white outline-none"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="number"
-                      placeholder="Amount ₹"
-                      value={editItemPrice}
-                      onChange={(e) => setEditItemPrice(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-white font-bold outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Discount Adjustment */}
+            {/* Patient & Invoice Meta */}
+            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-100">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Discount Amount (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editDiscount}
-                  onChange={(e) => setEditDiscount(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white outline-none font-bold text-amber-700"
-                />
+                <div className="text-slate-400 font-medium">Patient Name:</div>
+                <div className="font-bold text-slate-900 text-sm">{viewingReceipt.patientName}</div>
+                <div className="text-slate-500 font-mono mt-0.5">UHID: {viewingReceipt.patientUhid}</div>
               </div>
+              <div className="text-right">
+                <div className="text-slate-400 font-medium">Invoice Number:</div>
+                <div className="font-mono font-bold text-slate-900">{viewingReceipt.invoiceNumber}</div>
+                <div className="text-slate-500 mt-0.5">{new Date(viewingReceipt.createdAt).toLocaleDateString()}</div>
+              </div>
+            </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            {/* Itemized Table */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden text-xs">
+              <table className="w-full text-left">
+                <thead className="bg-slate-100 text-slate-600 font-semibold text-[11px]">
+                  <tr>
+                    <th className="py-2.5 px-3">Service / Charge Description</th>
+                    <th className="py-2.5 px-3">Department</th>
+                    <th className="py-2.5 px-3">Qty</th>
+                    <th className="py-2.5 px-3">Unit Price</th>
+                    <th className="py-2.5 px-3 text-right">Total (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {viewingReceipt.items?.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/60">
+                      <td className="py-2.5 px-3 font-semibold text-slate-900">{item.description}</td>
+                      <td className="py-2.5 px-3 text-slate-500 capitalize">{item.department || item.category}</td>
+                      <td className="py-2.5 px-3">{item.quantity}</td>
+                      <td className="py-2.5 px-3">₹{item.unitPrice}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-slate-900">₹{item.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span>Subtotal:</span>
+                <span className="font-semibold">₹{viewingReceipt.subtotal}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Hospital Tax / GST (5%):</span>
+                <span className="font-semibold">₹{viewingReceipt.taxAmount || 0}</span>
+              </div>
+              <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-200">
+                <span>Grand Total:</span>
+                <span>₹{viewingReceipt.totalAmount}</span>
+              </div>
+              <div className="flex justify-between text-emerald-700 font-bold">
+                <span>Amount Paid:</span>
+                <span>₹{viewingReceipt.amountPaid || 0}</span>
+              </div>
+              <div className="flex justify-between text-amber-700 font-bold">
+                <span>Remaining Balance Due:</span>
+                <span>₹{viewingReceipt.balanceDue || 0}</span>
+              </div>
+            </div>
+
+            {/* Receipt Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[10px] text-slate-400">
+                Authorized Hospital Billing Clearance Seal
+              </span>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditingInvoice(null)}
+                  onClick={() => setViewingReceipt(null)}
                   className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs"
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs"
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5"
                 >
-                  Save Bill Adjustments
+                  <Printer className="w-3.5 h-3.5" /> Print Receipt
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

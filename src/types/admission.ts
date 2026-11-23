@@ -17,6 +17,7 @@ export interface Bed {
   currentPatientUhid?: string;
   admissionId?: string;
   lastCleanedAt?: string;
+  category?: string;
 }
 
 export interface Ward {
@@ -29,6 +30,29 @@ export interface Ward {
   inchargeStaffName?: string;
   totalBeds: number;
   availableBeds: number;
+}
+
+export interface AdmissionRequest {
+  id: string;
+  hospitalId: string;
+  consultationId: string;
+  appointmentId?: string;
+  patientId: string;
+  patientName: string;
+  patientUhid: string;
+  patientAge?: number;
+  patientGender?: string;
+  doctorName: string;
+  isVip: boolean;
+  priority?: 'Normal' | 'VIP' | 'Emergency';
+  notes: string;
+  reason?: string;
+  status: 'pending' | 'allocated' | 'rejected';
+  requestedAt: string;
+  allocatedBedId?: string;
+  allocatedBedNumber?: string;
+  allocatedWardName?: string;
+  allocatedAt?: string;
 }
 
 export interface Admission {

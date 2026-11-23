@@ -18,23 +18,85 @@ import {
   AlertCircle,
   Stethoscope,
   X,
-  CreditCard
+  CreditCard,
+  Globe,
+  Tag,
+  Check
 } from 'lucide-react';
 
 export const ReceptionistDashboard: React.FC = () => {
-  const { patients, appointments, employees, addPatient, bookAppointment, updateAppointmentStatus, updateAppointment } = useHospital();
+  const {
+    patients,
+    appointments,
+    employees,
+    addPatient,
+    registerWalkInAppointment,
+    confirmOnlineAppointment,
+    updateAppointmentStatus,
+    updateAppointment
+  } = useHospital();
   const { currentUser } = useAuth();
 
-  const [activeSubTab, setActiveSubTab] = useState<'queue' | 'new_patient' | 'book' | 'patients'>('queue');
+  const [activeSubTab, setActiveSubTab] = useState<'walk_in' | 'online' | 'queue' | 'patients'>('queue');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all');
 
-  // Edit Appointment Modal State
+  // Walk-in Registration Form State
+  const [wName, setWName] = useState('');
+  const [wPhone, setWPhone] = useState('');
+  const [wAge, setWAge] = useState('32');
+  const [wGender, setWGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [wDoctorId, setWDoctorId] = useState('');
+  const [wComplaint, setWComplaint] = useState('General Consultation & Checkup');
+  const [wDate, setWDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // Edit / Reschedule Modal State
   const [editingApt, setEditingApt] = useState<Appointment | null>(null);
   const [editComplaint, setEditComplaint] = useState('');
   const [editDocId, setEditDocId] = useState('');
   const [editSlot, setEditSlot] = useState('');
   const [editDate, setEditDate] = useState('');
+
+  const doctors = employees.filter(
+    e => (e.primaryRole === 'doctor' || e.additionalRoles.includes('doctor') || e.primaryRole === 'owner') && e.status === 'active'
+  );
+
+  // Quick Walk-in Registration
+  const handleWalkInSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wName || !wPhone) return;
+
+    const doc = doctors.find(d => d.id === wDoctorId) || doctors[0];
+    if (!doc) return;
+
+    await registerWalkInAppointment({
+      patientName: wName.trim(),
+      phone: wPhone.trim(),
+      age: parseInt(wAge) || 30,
+      gender: wGender,
+      doctorId: doc.id,
+      doctorName: doc.name,
+      departmentId: doc.departmentId,
+      departmentName: doc.departmentName,
+      chiefComplaint: wComplaint.trim(),
+      appointmentDate: wDate,
+      consultationFee: 500
+    });
+
+    setWName('');
+    setWPhone('');
+    setWComplaint('General Consultation & Checkup');
+    setActiveSubTab('queue');
+  };
+
+  // Online Appointments Confirm & Issue Token
+  const handleConfirmOnline = async (apt: Appointment) => {
+    await confirmOnlineAppointment(apt.id);
+  };
+
+  const handleCancelApt = (aptId: string) => {
+    updateAppointmentStatus(aptId, 'cancelled');
+  };
 
   const handleStartEditApt = (apt: Appointment) => {
     setEditingApt(apt);
@@ -58,306 +120,314 @@ export const ReceptionistDashboard: React.FC = () => {
     setEditingApt(null);
   };
 
-  // New Patient Form
-  const [pName, setPName] = useState('');
-  const [pMobile, setPMobile] = useState('');
-  const [pAge, setPAge] = useState('35');
-  const [pGender, setPGender] = useState<'Male' | 'Female' | 'Other'>('Male');
-  const [pBlood, setPBlood] = useState<'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'>('B+');
-  const [pAddress, setPAddress] = useState('New Delhi');
+  // Filter queues
+  const onlineRequests = appointments.filter(a => a.status === 'requested' || a.bookingSource === 'online');
 
-  // Booking Form
-  const [selectedPatientId, setSelectedPatientId] = useState('');
-  const [selectedDoctorId, setSelectedDoctorId] = useState('');
-  const [aptDate, setAptDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [timeSlot, setTimeSlot] = useState('10:00 AM');
-  const [chiefComplaint, setChiefComplaint] = useState('General Consultation');
-
-  const doctors = employees.filter(
-    e => (e.primaryRole === 'doctor' || e.additionalRoles.includes('doctor') || e.primaryRole === 'owner') && e.status === 'active'
-  );
-
-  const handleRegisterPatient = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pName || !pMobile) return;
-
-    const newPat = addPatient({
-      name: pName,
-      age: parseInt(pAge) || 30,
-      gender: pGender,
-      dob: '1990-01-01',
-      phone: pMobile,
-      address: pAddress,
-      bloodGroup: pBlood,
-      allergies: [],
-      chronicConditions: [],
-      emergencyContact: {
-        name: 'Family Contact',
-        relationship: 'Family',
-        phone: pMobile
-      }
-    });
-
-    // Reset & prep booking
-    setSelectedPatientId(newPat.id);
-    setPName('');
-    setPMobile('');
-    setActiveSubTab('book');
-  };
-
-  const handleBookSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const pat = patients.find(p => p.id === selectedPatientId);
-    const doc = employees.find(e => e.id === selectedDoctorId);
-    if (!pat || !doc) return;
-
-    bookAppointment({
-      patientId: pat.id,
-      patientName: pat.name,
-      patientUhid: pat.uhid,
-      patientPhone: pat.phone,
-      doctorId: doc.id,
-      doctorName: doc.name,
-      departmentId: doc.departmentId,
-      departmentName: doc.departmentName,
-      appointmentDate: aptDate,
-      timeSlot,
-      type: 'general',
-      chiefComplaint,
-      consultationFee: doc.consultationFee || 1200,
-      isFeePaid: true
-    });
-
-    setChiefComplaint('General Consultation');
-    setActiveSubTab('queue');
-  };
-
-  const handleCheckIn = (aptId: string) => {
-    updateAppointmentStatus(aptId, 'in_consultation');
-  };
-
-  const handleCancelApt = (aptId: string) => {
-    updateAppointmentStatus(aptId, 'cancelled');
-  };
-
-  // Filtered queue
-  const queueAppointments = appointments.filter(apt => {
+  const filteredQueue = appointments.filter(apt => {
     const q = searchTerm.toLowerCase();
     const matchSearch =
       apt.patientName.toLowerCase().includes(q) ||
       apt.patientUhid.toLowerCase().includes(q) ||
-      apt.doctorName.toLowerCase().includes(q);
+      apt.patientPhone.includes(q) ||
+      (apt.tokenFormatted && apt.tokenFormatted.toLowerCase().includes(q)) ||
+      String(apt.tokenNumber).includes(q);
     const matchDoc = selectedDoctorFilter === 'all' || apt.doctorId === selectedDoctorFilter;
     return matchSearch && matchDoc;
   });
 
-  const waitingCount = appointments.filter(a => a.status === 'scheduled').length;
-  const inConsultCount = appointments.filter(a => a.status === 'in_consultation').length;
-  const completedCount = appointments.filter(a => a.status === 'completed').length;
-
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold">
-              <Calendar className="w-6 h-6 text-blue-600" />
-            </div>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-emerald-600" />
+            Reception Desk • Online & Walk-in Token Management
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Instant OP Tokens • Online Request Review • Duplicate Prevention • Real-Time Queue
+          </p>
+        </div>
+
+        {/* Quick Nav Subtabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
+          <button
+            onClick={() => setActiveSubTab('walk_in')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeSubTab === 'walk_in' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
+            Walk-in Desk
+          </button>
+          <button
+            onClick={() => setActiveSubTab('online')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeSubTab === 'online' ? 'bg-white text-blue-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 text-blue-600" />
+            Online Requests
+            {onlineRequests.filter(r => r.status === 'requested').length > 0 && (
+              <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                {onlineRequests.filter(r => r.status === 'requested').length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveSubTab('queue')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeSubTab === 'queue' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-slate-600" />
+            Live OP Queue ({filteredQueue.length})
+          </button>
+          <button
+            onClick={() => setActiveSubTab('patients')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeSubTab === 'patients' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-slate-600" />
+            Patients ({patients.length})
+          </button>
+        </div>
+      </div>
+
+      {/* TAB 1: WALK-IN TOKEN DESK */}
+      {activeSubTab === 'walk_in' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs max-w-3xl mx-auto space-y-6">
+          <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Reception & OPD Front Desk</h1>
-              <p className="text-xs text-slate-500">
-                Patient Registration • Token Queue Management • Doctor OPD Availability
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-emerald-600" />
+                Quick Walk-in Patient Registration & Token Generation
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Automatically matches existing records by mobile or creates new UHID and issues sequential daily OP token.
               </p>
             </div>
+            <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
+              Desk Active
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveSubTab('new_patient')}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Register Patient</span>
-            </button>
-            <button
-              onClick={() => setActiveSubTab('book')}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Book Token / Appointment</span>
-            </button>
-          </div>
-        </div>
+          <form onSubmit={handleWalkInSubmit} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Patient Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ramesh Kumar"
+                  value={wName}
+                  onChange={(e) => setWName(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+                />
+              </div>
 
-        {/* Quick Tabs */}
-        <div className="flex items-center gap-2 pt-5 border-t border-slate-100 mt-5 overflow-x-auto scrollbar-none">
-          {[
-            { id: 'queue', label: 'Live Token Queue', icon: Clock, badge: waitingCount + inConsultCount },
-            { id: 'book', label: 'Appointment Booking', icon: Plus },
-            { id: 'new_patient', label: 'New Patient Registration', icon: UserPlus },
-            { id: 'patients', label: 'Patient Directory & UHID', icon: Users, badge: patients.length }
-          ].map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeSubTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Mobile Number (Duplicate Check) *</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. 9840123456"
+                  value={wPhone}
+                  onChange={(e) => setWPhone(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+                />
+              </div>
+            </div>
 
-      {/* KPI Counters */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Waiting in OPD Queue</div>
-          <div className="text-2xl font-black text-amber-600 mt-0.5">{waitingCount}</div>
-          <div className="text-[10px] text-slate-500">Tokens pending consultation</div>
-        </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Age *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max="120"
+                  value={wAge}
+                  onChange={(e) => setWAge(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+                />
+              </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">In Consultation</div>
-          <div className="text-2xl font-black text-blue-600 mt-0.5">{inConsultCount}</div>
-          <div className="text-[10px] text-slate-500">Currently with doctor</div>
-        </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Gender *</label>
+                <select
+                  value={wGender}
+                  onChange={(e) => setWGender(e.target.value as any)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Consultations Completed</div>
-          <div className="text-2xl font-black text-emerald-600 mt-0.5">{completedCount}</div>
-          <div className="text-[10px] text-slate-500">Billed & completed</div>
-        </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Consulting Doctor *</label>
+                <select
+                  value={wDoctorId}
+                  onChange={(e) => setWDoctorId(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+                >
+                  <option value="">Select Doctor...</option>
+                  {doctors.map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.departmentName})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Doctors Available</div>
-          <div className="text-2xl font-black text-slate-900 mt-0.5">{doctors.length}</div>
-          <div className="text-[10px] text-emerald-700 font-semibold">Active & on duty</div>
-        </div>
-      </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Appointment Date</label>
+                <input
+                  type="date"
+                  value={wDate}
+                  onChange={(e) => setWDate(e.target.value)}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+                />
+              </div>
 
-      {/* VIEW: LIVE QUEUE */}
-      {activeSubTab === 'queue' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by patient name, UHID or doctor..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 rounded-xl border border-slate-200 outline-none"
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Consultation Fee</label>
+                <input
+                  type="text"
+                  disabled
+                  value="₹500.00 (Standard OPD)"
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Chief Complaint / Short Reason *</label>
+              <textarea
+                rows={2}
+                required
+                value={wComplaint}
+                onChange={(e) => setWComplaint(e.target.value)}
+                placeholder="e.g. High fever for 2 days, body aches, cough"
+                className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <select
-                value={selectedDoctorFilter}
-                onChange={(e) => setSelectedDoctorFilter(e.target.value)}
-                className="text-xs py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none"
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setWName('');
+                  setWPhone('');
+                }}
+                className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-xl text-xs transition-colors"
               >
-                <option value="all">All Doctors</option>
-                {doctors.map(d => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.departmentName})</option>
-                ))}
-              </select>
+                Clear Form
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Issue OP Token & Forward to Doctor
+              </button>
             </div>
+          </form>
+        </div>
+      )}
+
+      {/* TAB 2: ONLINE APPOINTMENTS QUEUE */}
+      {activeSubTab === 'online' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Globe className="w-5 h-5 text-blue-600" />
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Incoming Online Appointment Requests</h3>
+                <p className="text-xs text-slate-500">Submitted by patients via online hospital portal</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+              {onlineRequests.length} Online Requests
+            </span>
           </div>
 
-          <div className="overflow-x-auto -mx-2 sm:mx-0">
-            <table className="w-full text-left text-xs border-collapse min-w-[560px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Token</th>
-                  <th className="py-3 px-4">Patient</th>
-                  <th className="py-3 px-4">Doctor & Department</th>
-                  <th className="py-3 px-4">Time Slot</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
+                <tr>
+                  <th className="py-3 px-4">Patient / UHID</th>
+                  <th className="py-3 px-4">Phone / Age</th>
+                  <th className="py-3 px-4">Requested Doctor</th>
+                  <th className="py-3 px-4">Preferred Date & Time</th>
+                  <th className="py-3 px-4">Complaint</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {queueAppointments.length === 0 ? (
+                {onlineRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-400 text-xs">
-                      No appointments in queue for today.
+                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                      No online appointment requests at this time.
                     </td>
                   </tr>
                 ) : (
-                  queueAppointments.map(apt => (
-                    <tr key={apt.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-4 font-bold font-mono text-base text-slate-900">
-                        #{apt.tokenNumber}
-                      </td>
-                      <td className="py-3 px-4">
+                  onlineRequests.map(apt => (
+                    <tr key={apt.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{apt.patientName}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{apt.patientUhid} • {apt.patientPhone}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{apt.patientUhid}</div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{apt.doctorName}</div>
-                        <div className="text-[10px] text-slate-500">{apt.departmentName}</div>
+                      <td className="py-3.5 px-4 text-slate-600">
+                        <div>{apt.patientPhone}</div>
+                        <div className="text-[10px] text-slate-400">{apt.patientAge ? `${apt.patientAge} yrs, ` : ''}{apt.patientGender || ''}</div>
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-700">
-                        {apt.timeSlot}
+                      <td className="py-3.5 px-4 font-semibold text-slate-800">
+                        {apt.doctorName}
                       </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
-                          apt.status === 'scheduled' ? 'bg-amber-100 text-amber-800' :
-                          apt.status === 'in_consultation' ? 'bg-blue-100 text-blue-800' :
-                          apt.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      <td className="py-3.5 px-4 text-slate-600">
+                        <div className="font-semibold">{apt.appointmentDate}</div>
+                        <div className="text-[10px] text-slate-400">{apt.timeSlot}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700 max-w-xs truncate">
+                        {apt.chiefComplaint || apt.problemDescription || 'General Consultation'}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          apt.status === 'requested' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          apt.status === 'waiting' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          apt.status === 'completed' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                          'bg-slate-100 text-slate-600'
                         }`}>
-                          {apt.status.replace('_', ' ')}
+                          {apt.status.toUpperCase()}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {apt.status === 'scheduled' && (
+                          {apt.status === 'requested' && (
                             <button
-                              onClick={() => handleCheckIn(apt.id)}
-                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold"
+                              onClick={() => handleConfirmOnline(apt)}
+                              className="px-2.5 py-1 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-xs flex items-center gap-1"
                             >
-                              Check-In
+                              <Check className="w-3 h-3" /> Confirm & Issue Token
                             </button>
                           )}
-                          {apt.status !== 'completed' && apt.status !== 'cancelled' && (
-                            <>
-                              <button
-                                onClick={() => handleStartEditApt(apt)}
-                                className="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-semibold"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleCancelApt(apt.id)}
-                                className="px-2 py-1 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold"
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          )}
-                          {apt.status === 'completed' && (
-                            <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Billed
-                            </span>
+                          <button
+                            onClick={() => handleStartEditApt(apt)}
+                            className="px-2 py-1 text-xs font-semibold border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg"
+                          >
+                            Reschedule
+                          </button>
+                          {apt.status !== 'cancelled' && (
+                            <button
+                              onClick={() => handleCancelApt(apt.id)}
+                              className="px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg"
+                            >
+                              Cancel
+                            </button>
                           )}
                         </div>
                       </td>
@@ -370,243 +440,170 @@ export const ReceptionistDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* VIEW: BOOK APPOINTMENT */}
-      {activeSubTab === 'book' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 max-w-2xl mx-auto shadow-xs space-y-4">
-          <div className="border-b border-slate-100 pb-3">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-blue-600" />
-              Book OPD Appointment & Token
-            </h2>
-            <p className="text-xs text-slate-500">
-              Generates immediate consultation queue token and links to doctor dashboard.
-            </p>
-          </div>
+      {/* TAB 3: LIVE OP QUEUE */}
+      {activeSubTab === 'queue' && (
+        <div className="space-y-4">
+          {/* Filters Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative flex-1 w-full sm:w-auto">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search patient, UHID, token (e.g. OP-101), phone..."
+                className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none"
+              />
+            </div>
 
-          <form onSubmit={handleBookSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Select Patient *</label>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <select
-                required
-                value={selectedPatientId}
-                onChange={(e) => setSelectedPatientId(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
+                value={selectedDoctorFilter}
+                onChange={(e) => setSelectedDoctorFilter(e.target.value)}
+                className="text-xs p-2 rounded-xl border border-slate-200 bg-slate-50 outline-none"
               >
-                <option value="">-- Choose Patient by UHID / Name --</option>
-                {patients.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.uhid}) - {p.phone}</option>
+                <option value="all">All Doctors</option>
+                {doctors.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Consulting Doctor *</label>
-                <select
-                  required
-                  value={selectedDoctorId}
-                  onChange={(e) => setSelectedDoctorId(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-                >
-                  <option value="">-- Choose Doctor --</option>
-                  {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.departmentName}) - ₹{d.consultationFee || 1200}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Time Slot</label>
-                <select
-                  value={timeSlot}
-                  onChange={(e) => setTimeSlot(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-                >
-                  {['09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'].map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Chief Complaint</label>
-              <input
-                type="text"
-                value={chiefComplaint}
-                onChange={(e) => setChiefComplaint(e.target.value)}
-                placeholder="e.g. Chest discomfort, palpitations on exertion"
-                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-              />
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2">
               <button
-                type="button"
-                onClick={() => setActiveSubTab('queue')}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                onClick={() => setActiveSubTab('walk_in')}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs flex items-center gap-1.5 whitespace-nowrap"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs"
-              >
-                Generate Token & Confirm Booking
+                <Plus className="w-3.5 h-3.5" /> New Walk-in Token
               </button>
             </div>
-          </form>
-        </div>
-      )}
-
-      {/* VIEW: NEW PATIENT REGISTRATION */}
-      {activeSubTab === 'new_patient' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 max-w-2xl mx-auto shadow-xs space-y-4">
-          <div className="border-b border-slate-100 pb-3">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-emerald-600" />
-              New Patient Registration (Master UHID Generation)
-            </h2>
-            <p className="text-xs text-slate-500">
-              Unique Hospital ID (UHID) is generated with automatic mobile deduplication.
-            </p>
           </div>
 
-          <form onSubmit={handleRegisterPatient} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Patient Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={pName}
-                  onChange={(e) => setPName(e.target.value)}
-                  placeholder="e.g. Ramesh Chandra"
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Mobile Number *</label>
-                <input
-                  type="tel"
-                  required
-                  value={pMobile}
-                  onChange={(e) => setPMobile(e.target.value)}
-                  placeholder="e.g. +91 98111 55667"
-                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-                />
-              </div>
+          {/* Queue Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
+                  <tr>
+                    <th className="py-3 px-4">Token #</th>
+                    <th className="py-3 px-4">Source</th>
+                    <th className="py-3 px-4">Patient / UHID</th>
+                    <th className="py-3 px-4">Assigned Doctor</th>
+                    <th className="py-3 px-4">Time Slot</th>
+                    <th className="py-3 px-4">Chief Complaint</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredQueue.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                        No appointments found matching your filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredQueue.map(apt => (
+                      <tr key={apt.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-800">
+                            {apt.tokenFormatted || `OP-${apt.tokenNumber}`}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {apt.bookingSource === 'online' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              <Globe className="w-2.5 h-2.5" /> Online
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <UserPlus className="w-2.5 h-2.5" /> Walk-in
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900">{apt.patientName}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{apt.patientUhid} • {apt.patientPhone}</div>
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-800">
+                          {apt.doctorName}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">
+                          {apt.appointmentDate} • {apt.timeSlot}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-700 max-w-xs truncate">
+                          {apt.chiefComplaint}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            apt.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            apt.status === 'in_consultation' ? 'bg-purple-50 text-purple-700 border border-purple-200 animate-pulse' :
+                            apt.status === 'waiting' || apt.status === 'scheduled' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                            apt.status === 'requested' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                            'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {apt.status.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleStartEditApt(apt)}
+                              className="px-2 py-1 text-xs font-semibold border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg"
+                            >
+                              Edit
+                            </button>
+                            {apt.status !== 'cancelled' && apt.status !== 'completed' && (
+                              <button
+                                onClick={() => handleCancelApt(apt.id)}
+                                className="px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Age</label>
-                <input
-                  type="number"
-                  value={pAge}
-                  onChange={(e) => setPAge(e.target.value)}
-                  className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Gender</label>
-                <select
-                  value={pGender}
-                  onChange={(e) => setPGender(e.target.value as any)}
-                  className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Group</label>
-                <select
-                  value={pBlood}
-                  onChange={(e) => setPBlood(e.target.value as any)}
-                  className="w-full text-xs p-2 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-                >
-                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Residential Address</label>
-              <input
-                type="text"
-                value={pAddress}
-                onChange={(e) => setPAddress(e.target.value)}
-                placeholder="e.g. 14 Defence Colony, New Delhi"
-                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 outline-none"
-              />
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveSubTab('queue')}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-              >
-                Generate UHID & Proceed
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
       )}
 
-      {/* VIEW: PATIENTS DIRECTORY */}
+      {/* TAB 4: PATIENTS DIRECTORY */}
       {activeSubTab === 'patients' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Patient Master Index</h3>
-            <span className="text-xs text-slate-400 font-mono">{patients.length} Registered</span>
+            <h3 className="text-sm font-bold text-slate-900">Hospital Patient Directory ({patients.length})</h3>
+            <span className="text-xs text-slate-500">Unique Identity & Multi-Department Medical Records</span>
           </div>
-
-          <div className="overflow-x-auto -mx-2 sm:mx-0">
-            <table className="w-full text-left text-xs border-collapse min-w-[560px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
+                <tr>
                   <th className="py-3 px-4">UHID</th>
                   <th className="py-3 px-4">Name</th>
                   <th className="py-3 px-4">Age / Gender</th>
-                  <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">Blood</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+                  <th className="py-3 px-4">Phone</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Registered Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {patients.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50/70">
-                    <td className="py-3 px-4 font-mono font-bold text-blue-700">{p.uhid}</td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{p.name}</td>
-                    <td className="py-3 px-4 text-slate-600">{p.age} yrs • {p.gender}</td>
-                    <td className="py-3 px-4 text-slate-600">{p.phone}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-700">{p.bloodGroup}</span>
+                  <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-800">{p.uhid}</td>
+                    <td className="py-3.5 px-4 font-bold text-slate-900">{p.name}</td>
+                    <td className="py-3.5 px-4 text-slate-600">{p.age} yrs • {p.gender}</td>
+                    <td className="py-3.5 px-4 text-slate-600">{p.phone}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                        {p.status}
+                      </span>
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => {
-                          setSelectedPatientId(p.id);
-                          setActiveSubTab('book');
-                        }}
-                        className="px-2.5 py-1 text-xs font-semibold bg-blue-50 text-blue-700 rounded-lg border border-blue-200 hover:bg-blue-100"
-                      >
-                        Book Token
-                      </button>
+                    <td className="py-3.5 px-4 text-slate-500">
+                      {new Date(p.registeredAt).toLocaleDateString()}
                     </td>
                   </tr>
                 ))}
@@ -616,7 +613,7 @@ export const ReceptionistDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* EDIT APPOINTMENT MODAL */}
+      {/* EDIT / RESCHEDULE MODAL */}
       {editingApt && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200/80 space-y-4 animate-in fade-in zoom-in-95 duration-100 max-h-[90vh] overflow-y-auto">

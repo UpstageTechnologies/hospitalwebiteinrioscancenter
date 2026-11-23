@@ -1,74 +1,108 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
-import type { Medicine } from '../../types/pharmacy';
+import { firestoreService } from '../../services/firestoreService';
+import type { PosMedicine } from '../../services/posIntegrationService';
 import {
   Pill,
   Search,
-  Plus,
-  AlertTriangle,
-  Package,
   CheckCircle2,
-  Calendar,
-  X,
-  Sparkles
+  AlertTriangle,
+  Clock,
+  Package,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  Check,
+  X
 } from 'lucide-react';
 
+interface QueuedPrescription {
+  id: string;
+  appointmentId: string;
+  consultationId?: string;
+  patientId: string;
+  patientName: string;
+  patientUhid: string;
+  doctorName: string;
+  status: string; // 'Queued' | 'Dispensed'
+  prescribedAt: string;
+  items: {
+    medicineId: string;
+    posMedicineId?: string;
+    medicineName: string;
+    dosage: string;
+    quantity: number;
+    unitPrice: number;
+    isDispensed?: boolean;
+  }[];
+}
+
 export const PharmacyDashboard: React.FC = () => {
-  const { medicines, patients, dispensePrescription } = useHospital();
-  const { currentUser } = useAuth();
+  const { currentHospital, currentUser } = useAuth();
+  const { posMedicines, posConnection, dispensePrescriptionAtomic } = useHospital();
 
+  const [activeTab, setActiveTab] = useState<'queue' | 'inventory'>('queue');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showDispenseModal, setShowDispenseModal] = useState(false);
-  const [selectedPatientId, setSelectedPatientId] = useState('');
-  const [selectedMedId, setSelectedMedId] = useState('');
-  const [dispenseQty, setDispenseQty] = useState('1');
+  const [prescriptionsQueue, setPrescriptionsQueue] = useState<QueuedPrescription[]>([]);
+  const [dispensingId, setDispensingId] = useState<string | null>(null);
 
-  const lowStockMedicines = medicines.filter(m => m.currentStock <= m.minStockAlertLevel);
-
-  const filteredMedicines = medicines.filter(m =>
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.genericName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleDispenseSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const pat = patients.find(p => p.id === selectedPatientId);
-    const med = medicines.find(m => m.id === selectedMedId);
-    if (!pat || !med) return;
-
-    const qty = parseInt(dispenseQty) || 1;
-    const batch = med.batches[0] || { batchNumber: 'DEFAULT-BATCH', sellingPricePerUnit: 100 };
-    const unitPrice = batch.sellingPricePerUnit;
-    const subtotal = unitPrice * qty;
-    const tax = Math.round(subtotal * 0.05);
-
-    dispensePrescription({
-      patientId: pat.id,
-      patientName: pat.name,
-      patientUhid: pat.uhid,
-      prescribedDoctorName: 'Dr. Vikram Malhotra',
-      dispensedByPharmacistName: currentUser?.name || 'Suresh Singhania (Pharmacist)',
-      items: [
-        {
-          medicineId: med.id,
-          medicineName: med.name,
-          batchNumber: batch.batchNumber,
-          quantity: qty,
-          unitPrice,
-          totalPrice: subtotal
+  // Subscribe to real-time prescriptions subcollection
+  useEffect(() => {
+    const unsub = firestoreService.subscribeToCollection<QueuedPrescription>(
+      currentHospital.id,
+      'prescriptions',
+      (data) => {
+        if (data) {
+          setPrescriptionsQueue(data);
         }
-      ],
-      subtotal,
-      discount: 0,
-      tax,
-      grandTotal: subtotal + tax,
-      paymentStatus: 'paid'
-    });
+      }
+    );
+    return () => unsub();
+  }, [currentHospital.id]);
 
-    setShowDispenseModal(false);
+  const handleDispenseRx = async (rx: QueuedPrescription) => {
+    setDispensingId(rx.id);
+    try {
+      const itemsToDispense = rx.items.map(item => {
+        const matchedPos = posMedicines.find(m => m.id === (item.posMedicineId || item.medicineId) || m.name === item.medicineName);
+        return {
+          medicineId: item.medicineId,
+          posMedicineId: matchedPos?.id || item.posMedicineId || item.medicineId,
+          medicineName: item.medicineName,
+          quantity: item.quantity || 1,
+          unitPrice: matchedPos?.sellingPrice || item.unitPrice || 50
+        };
+      });
+
+      await dispensePrescriptionAtomic({
+        prescriptionId: rx.id,
+        patientId: rx.patientId,
+        patientName: rx.patientName,
+        patientUhid: rx.patientUhid,
+        doctorName: rx.doctorName,
+        itemsToDispense
+      });
+    } finally {
+      setDispensingId(null);
+    }
   };
+
+  const filteredQueue = prescriptionsQueue.filter(rx => {
+    const q = searchTerm.toLowerCase();
+    return rx.patientName.toLowerCase().includes(q) ||
+      rx.patientUhid.toLowerCase().includes(q) ||
+      rx.doctorName.toLowerCase().includes(q);
+  });
+
+  const filteredMeds = posMedicines.filter(m => {
+    const q = searchTerm.toLowerCase();
+    return m.name.toLowerCase().includes(q) ||
+      (m.genericName && m.genericName.toLowerCase().includes(q)) ||
+      m.category.toLowerCase().includes(q);
+  });
+
+  const pendingCount = prescriptionsQueue.filter(rx => rx.status === 'Queued').length;
 
   return (
     <div className="space-y-6">
@@ -77,192 +111,236 @@ export const PharmacyDashboard: React.FC = () => {
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Pill className="w-5 h-5 text-emerald-600" />
-            Pharmacy & FEFO Batch Inventory Management
+            Pharmacy Work Queue & Kadai POS Stock Dispensing
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Prescription Dispensing • First-Expiry-First-Out (FEFO) Protocol • Threshold Alerts
+            Connected to Kadai POS ({posConnection?.shopName || 'Kadai Medicals'}) • Atomic Stock Deduction on Dispense
           </p>
         </div>
 
-        <button
-          onClick={() => setShowDispenseModal(true)}
-          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-xs transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Dispense Prescription
-        </button>
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
+          <button
+            onClick={() => setActiveTab('queue')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'queue' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-emerald-600" />
+            Prescriptions Queue ({pendingCount})
+          </button>
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5 text-slate-600" />
+            POS Drug Master ({posMedicines.length})
+          </button>
+        </div>
       </div>
 
-      {/* Low Stock Warning Banner */}
-      {lowStockMedicines.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-amber-900">
-                Low Stock Alert ({lowStockMedicines.length} Medicines Critical)
-              </h4>
-              <p className="text-[11px] text-amber-700">
-                {lowStockMedicines.map(m => `${m.name} (${m.currentStock} units)`).join(', ')} below minimum threshold.
+      {/* Search Bar */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={activeTab === 'queue' ? "Search patient, UHID, doctor..." : "Search medicine name, generic name, category..."}
+            className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 outline-none"
+          />
+        </div>
+      </div>
+
+      {/* TAB 1: PRESCRIPTIONS WORK QUEUE */}
+      {activeTab === 'queue' && (
+        <div className="space-y-4">
+          {filteredQueue.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center space-y-3">
+              <Pill className="w-10 h-10 text-slate-300 mx-auto" />
+              <h3 className="text-base font-bold text-slate-700">No Prescriptions Queued</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Consultations submitted by doctors with prescribed medicines will appear here for atomic dispensing.
               </p>
             </div>
-          </div>
-          <button className="text-xs font-semibold text-amber-800 bg-amber-200/60 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
-            Reorder Stock
-          </button>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {filteredQueue.map(rx => {
+                const isDispensed = rx.status === 'Dispensed';
+                return (
+                  <div
+                    key={rx.id}
+                    className={`bg-white rounded-2xl border p-5 shadow-xs transition-all space-y-4 ${
+                      isDispensed
+                        ? 'border-slate-200/60 bg-slate-50/50'
+                        : 'border-slate-200/80 hover:border-emerald-300'
+                    }`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">{rx.patientName}</h3>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {rx.patientUhid} • Prescribed by {rx.doctorName}
+                        </div>
+                      </div>
+
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                        isDispensed
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {rx.status.toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Prescribed Items Table */}
+                    <div className="rounded-xl border border-slate-200/80 overflow-hidden text-xs">
+                      <table className="w-full text-left">
+                        <thead className="bg-slate-50 text-slate-600 font-semibold text-[11px]">
+                          <tr>
+                            <th className="py-2 px-3">Medicine</th>
+                            <th className="py-2 px-3">Dosage</th>
+                            <th className="py-2 px-3">Req Qty</th>
+                            <th className="py-2 px-3">POS Stock</th>
+                            <th className="py-2 px-3">Unit Price</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {rx.items.map((item, idx) => {
+                            const matchedPos = posMedicines.find(
+                              m => m.id === (item.posMedicineId || item.medicineId) || m.name === item.medicineName
+                            );
+                            const available = matchedPos ? matchedPos.currentStock : 100;
+                            const isStockSufficient = available >= item.quantity;
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50/60">
+                                <td className="py-2 px-3 font-semibold text-slate-900">
+                                  {item.medicineName}
+                                </td>
+                                <td className="py-2 px-3 text-slate-600">
+                                  {item.dosage}
+                                </td>
+                                <td className="py-2 px-3 font-bold text-slate-800">
+                                  {item.quantity}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    isStockSufficient
+                                      ? 'bg-emerald-50 text-emerald-700'
+                                      : 'bg-rose-50 text-rose-700'
+                                  }`}>
+                                    {available} units
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 font-semibold text-slate-800">
+                                  ₹{matchedPos?.sellingPrice || item.unitPrice || 50}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Footer Action */}
+                    <div className="pt-2 flex items-center justify-between">
+                      <div className="text-[11px] text-slate-500">
+                        {isDispensed ? 'Inventory deducted & added to patient bill' : 'Stock will deduct in Kadai POS upon dispense'}
+                      </div>
+
+                      {isDispensed ? (
+                        <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" /> Dispensed Successfully
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleDispenseRx(rx)}
+                          disabled={dispensingId === rx.id}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Check className="w-4 h-4" />
+                          {dispensingId === rx.id ? 'Deducting Stock...' : 'Dispense & Deduct POS Stock'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Medicines Table */}
-      <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search medicine by trade name or generic..."
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 text-xs rounded-lg border border-slate-200 outline-none focus:border-emerald-500"
-            />
+      {/* TAB 2: KADAI POS DRUG MASTER */}
+      {activeTab === 'inventory' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Kadai POS Live Medicine Catalog</h3>
+              <p className="text-xs text-slate-500">Synchronized in real-time from Kadai POS inventory</p>
+            </div>
+            <span className="text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
+              {filteredMeds.length} Products Synced
+            </span>
           </div>
-          <span className="text-xs text-slate-500">{medicines.length} Medicines in formulary</span>
-        </div>
 
-        <div className="overflow-x-auto -mx-2 sm:mx-0">
-          <table className="w-full text-left text-xs min-w-[560px]">
-            <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-              <tr>
-                <th className="p-3 font-semibold">Medicine</th>
-                <th className="p-3 font-semibold">Category</th>
-                <th className="p-3 font-semibold">Manufacturer</th>
-                <th className="p-3 font-semibold">Batch & Expiry</th>
-                <th className="p-3 font-semibold">Stock</th>
-                <th className="p-3 font-semibold">Price (MRP)</th>
-                <th className="p-3 text-right font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredMedicines.map((med) => {
-                const batch = med.batches[0];
-                const isLow = med.currentStock <= med.minStockAlertLevel;
-
-                return (
-                  <tr key={med.id} className="hover:bg-slate-50/50">
-                    <td className="p-3">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
+                <tr>
+                  <th className="py-3 px-4">Medicine Name</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Dosage / Instructions</th>
+                  <th className="py-3 px-4">Current Stock</th>
+                  <th className="py-3 px-4">Selling Price</th>
+                  <th className="py-3 px-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredMeds.map(med => (
+                  <tr key={med.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900">{med.name}</div>
-                      <div className="text-[10px] text-slate-400 italic">{med.genericName}</div>
+                      <div className="text-[10px] text-slate-400">{med.genericName}</div>
                     </td>
-                    <td className="p-3">
-                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-medium">
-                        {med.category}
+                    <td className="py-3.5 px-4 font-semibold text-slate-700">
+                      {med.category}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600">
+                      {med.dosage || 'As directed by physician'}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold">
+                      <span className={`px-2.5 py-1 rounded-lg ${
+                        med.currentStock > (med.minStockAlert || 10)
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      }`}>
+                        {med.currentStock} {med.unit}
                       </span>
                     </td>
-                    <td className="p-3 text-slate-600">{med.manufacturer}</td>
-                    <td className="p-3">
-                      <div className="font-mono text-slate-800 font-semibold">{batch?.batchNumber || 'N/A'}</div>
-                      <div className="text-[10px] text-slate-400">Exp: {batch?.expiryDate || 'N/A'}</div>
+                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                      ₹{med.sellingPrice}
                     </td>
-                    <td className="p-3">
-                      <div className={`font-extrabold ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>
-                        {med.currentStock} {med.unit}
-                      </div>
-                      <div className="text-[9px] text-slate-400">Min alert: {med.minStockAlertLevel}</div>
-                    </td>
-                    <td className="p-3 font-semibold text-slate-800">
-                      ₹{batch?.mrp || 100}
-                    </td>
-                    <td className="p-3 text-right">
-                      {isLow ? (
-                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                          Low Stock
+                    <td className="py-3.5 px-4">
+                      {med.currentStock > (med.minStockAlert || 10) ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          In Stock
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          Adequate
+                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                          Low Stock
                         </span>
                       )}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* MODAL: DISPENSE MEDICINE */}
-      {showDispenseModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Dispense Prescription (FEFO Stock)</h3>
-              <button onClick={() => setShowDispenseModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-
-            <form onSubmit={handleDispenseSubmit} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Select Patient</label>
-                <select
-                  value={selectedPatientId}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
-                  className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-slate-50 outline-none"
-                  required
-                >
-                  <option value="">-- Choose Patient --</option>
-                  {patients.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.uhid})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Medicine to Dispense</label>
-                <select
-                  value={selectedMedId}
-                  onChange={(e) => setSelectedMedId(e.target.value)}
-                  className="w-full text-xs p-2 rounded-lg border border-slate-200 bg-slate-50 outline-none"
-                  required
-                >
-                  <option value="">-- Choose Medicine --</option>
-                  {medicines.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} (Stock: {m.currentStock} - Batch: {m.batches[0]?.batchNumber})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={dispenseQty}
-                  onChange={(e) => setDispenseQty(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-slate-50 outline-none"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowDispenseModal(false)}
-                  className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs"
-                >
-                  Confirm & Deduct Stock
-                </button>
-              </div>
-            </form>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

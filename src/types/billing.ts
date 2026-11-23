@@ -1,5 +1,5 @@
 export type PaymentMethod = 'cash' | 'card' | 'upi' | 'insurance' | 'bank_transfer';
-export type InvoiceType = 'OPD' | 'IPD' | 'Pharmacy' | 'Laboratory' | 'Radiology' | 'Package';
+export type InvoiceType = 'OPD' | 'IPD' | 'Pharmacy' | 'Laboratory' | 'Radiology' | 'Package' | 'Consolidated';
 
 export interface BillItem {
   id: string;
@@ -8,6 +8,8 @@ export interface BillItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  department?: 'doctor' | 'pharmacy' | 'laboratory' | 'ward';
+  referenceId?: string;
 }
 
 export interface Invoice {
@@ -38,6 +40,7 @@ export interface Invoice {
   createdAt: string;
   createdByStaffName: string;
   receiptNumber?: string;
+  status?: 'active' | 'settled';
 }
 
 export interface HospitalExpense {
