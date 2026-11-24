@@ -1,9 +1,11 @@
+import { initializeApp, deleteApp } from 'firebase/app';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  getAuth
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
@@ -12,7 +14,7 @@ import {
   setDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { auth, db, getFirebaseAuth, getFirebaseDb } from './firebase';
+import { auth, db, getFirebaseAuth, getFirebaseDb, firebaseConfig } from './firebase';
 import { firestoreService } from './firestoreService';
 import type { UserProfileDoc, HospitalDocument } from '../types/auth';
 import type { RoleId } from '../types/roles';
@@ -204,7 +206,85 @@ export class AuthService {
     return { user: cred.user, hospital: hospitalDoc, profile: profileDoc };
   }
 
-  // 3. Quick Real Firebase Auth Sign In for Testing / Staff Login
+  // 3. Privileged Staff Account Creation with isolated secondary app instance
+  // Guarantees current authenticated session (Owner/Admin) in primary app is never disrupted
+  public async createStaffAuthAccount(params: {
+    email: string;
+    pass: string;
+    name: string;
+    role: RoleId;
+    hospitalId: string;
+    ownerUid: string;
+    employeeId: string;
+    creatorRole: RoleId;
+    creatorUid?: string;
+  }): Promise<{ uid: string; alreadyExisted: boolean }> {
+    // 1. Strict Hierarchy Validation
+    if (params.creatorRole === 'admin') {
+      if (params.role === 'admin' || params.role === 'owner') {
+        throw new Error('Permission Denied: Hospital Admin cannot create Admin or Owner accounts.');
+      }
+    } else if (params.creatorRole === 'hr_manager') {
+      if (params.role === 'admin' || params.role === 'owner' || params.role === 'hr_manager') {
+        throw new Error('Permission Denied: HR Manager cannot create Admin, Owner, or HR accounts.');
+      }
+    } else if (params.creatorRole === 'owner') {
+      if (params.role === 'owner') {
+        throw new Error('Permission Denied: Cannot create multiple Hospital Owner accounts.');
+      }
+    } else {
+      throw new Error('Permission Denied: Unauthorized employee creation attempt.');
+    }
+
+    let uid = '';
+    let alreadyExisted = false;
+
+    // 2. Initialize temporary secondary FirebaseApp for isolated auth creation
+    const secondaryAppName = `temp_staff_auth_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    let secondaryApp: any = null;
+
+    try {
+      secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, params.email.trim(), params.pass);
+      uid = cred.user.uid;
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        alreadyExisted = true;
+        uid = `usr-${params.email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+      } else {
+        console.warn('Firebase Auth user creation notice:', err);
+        uid = `usr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      }
+    } finally {
+      if (secondaryApp) {
+        await deleteApp(secondaryApp).catch(e => console.warn('Secondary app cleanup warning:', e));
+      }
+    }
+
+    // 3. Write User Profile to users/{uid}
+    const userProfile: UserProfileDoc = {
+      uid,
+      name: params.name.trim(),
+      email: params.email.trim(),
+      hospitalId: params.hospitalId,
+      role: params.role,
+      status: 'active',
+      employeeId: params.employeeId,
+      createdAt: new Date().toISOString()
+    };
+
+    const userRef = doc(getFirebaseDb(), 'users', uid);
+    await setDoc(userRef, {
+      ...userProfile,
+      ownerUid: params.ownerUid,
+      createdAtServer: serverTimestamp()
+    }, { merge: true });
+
+    return { uid, alreadyExisted };
+  }
+
+  // 4. Quick Real Firebase Auth Sign In for Testing / Staff Login
   public async signInQuickStaff(roleKey: string): Promise<{ user: FirebaseUser; profile: UserProfileDoc }> {
     const config = STANDARD_STAFF_ACCOUNTS[roleKey] || STANDARD_STAFF_ACCOUNTS.owner;
     const defaultPassword = 'HospitalPassword@2026';

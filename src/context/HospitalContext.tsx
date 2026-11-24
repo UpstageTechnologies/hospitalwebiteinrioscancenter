@@ -5,6 +5,7 @@ import {
   DEFAULT_DEPARTMENTS
 } from '../services/storageService';
 import { firestoreService } from '../services/firestoreService';
+import { authService } from '../services/authService';
 import {
   getStoredPosConnection,
   verifyAndConnectKadaiPosUser,
@@ -76,7 +77,7 @@ interface HospitalContextType {
   handleDisconnectPos: () => Promise<void>;
 
   // Phase 1 Employee Management & Admin Approval
-  submitEmployeeRequest: (employeeData: Omit<Employee, 'id' | 'hospitalId' | 'status' | 'approvalDetails'>) => { success: boolean; message: string; employee?: Employee };
+  submitEmployeeRequest: (employeeData: Omit<Employee, 'id' | 'hospitalId' | 'status' | 'approvalDetails'>, password?: string) => Promise<{ success: boolean; message: string; employee?: Employee }>;
   approveEmployeeRequest: (employeeId: string, approvedAdditionalRoles?: RoleId[], rejectedAdditionalRoles?: { role: RoleId; reason?: string }[]) => void;
   rejectEmployeeRequest: (employeeId: string, rejectionReason: string) => void;
   updateEmployee: (employeeId: string, updates: Partial<Employee>) => void;
@@ -219,7 +220,7 @@ interface HospitalContextType {
 const HospitalContext = createContext<HospitalContextType | undefined>(undefined);
 
 export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentHospital, currentUser, refreshUser } = useAuth();
+  const { currentHospital, currentUser, activeRole, refreshUser } = useAuth();
   const { success, error, info } = useToast();
   const hospId = currentHospital.id;
 
@@ -951,6 +952,20 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const req = roleRequests.find(r => r.id === requestId);
     if (!req || req.status !== 'pending') return;
 
+    const creatorRole = (currentUser?.primaryRole as RoleId) || (activeRole as RoleId) || 'admin';
+
+    // Prevent self-role approval
+    if (currentUser?.id === req.employeeId) {
+      error('Permission Denied', 'Self-approval of role requests is strictly prohibited.');
+      return;
+    }
+
+    // Admin cannot grant Admin or Owner roles
+    if (creatorRole !== 'owner' && (req.requestedRole === 'admin' || req.requestedRole === 'owner')) {
+      error('Permission Denied', 'Only Hospital Owner can approve Admin or Owner roles.');
+      return;
+    }
+
     const updatedReqs: RoleRequest[] = roleRequests.map(r =>
       r.id === requestId ? { ...r, status: 'approved' as const, reviewedAt: new Date().toISOString() } : r
     );
@@ -1110,23 +1125,148 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     firestoreService.setDocument(hospId, 'expenses', newExp.id, newExp).catch(err => console.warn(err));
   };
 
-  const submitEmployeeRequest = (employeeData: Omit<Employee, 'id' | 'hospitalId' | 'status' | 'approvalDetails'>) => {
+  const submitEmployeeRequest = async (
+    employeeData: Omit<Employee, 'id' | 'hospitalId' | 'status' | 'approvalDetails'>,
+    password?: string
+  ): Promise<{ success: boolean; message: string; employee?: Employee }> => {
+    const creatorRole = (currentUser?.primaryRole as RoleId) || (activeRole as RoleId) || 'hr_manager';
+
+    // 1. Strict Hierarchy Permission Checks
+    if (creatorRole === 'owner') {
+      if (employeeData.primaryRole === 'owner') {
+        error('Permission Denied', 'Hospital Owner cannot create another Owner account.');
+        return { success: false, message: 'Cannot create multiple Hospital Owner accounts.' };
+      }
+    } else if (creatorRole === 'admin') {
+      if (employeeData.primaryRole === 'owner' || employeeData.primaryRole === 'admin') {
+        error('Permission Denied', 'Hospital Admin cannot create Admin or Owner accounts.');
+        return { success: false, message: 'Hospital Admin cannot create Admin or Owner accounts.' };
+      }
+    } else if (creatorRole === 'hr_manager') {
+      if (employeeData.primaryRole === 'owner' || employeeData.primaryRole === 'admin' || employeeData.primaryRole === 'hr_manager') {
+        error('Permission Denied', 'HR Manager cannot create Admin, Owner, or HR accounts.');
+        return { success: false, message: 'HR Manager cannot create Admin, Owner, or HR accounts.' };
+      }
+    } else {
+      error('Permission Denied', 'Unauthorized employee creation attempt.');
+      return { success: false, message: 'Unauthorized employee creation attempt.' };
+    }
+
+    // 2. Duplicate Employee Prevention
+    const existing = employees.find(e =>
+      (employeeData.email && e.email?.toLowerCase() === employeeData.email.toLowerCase()) ||
+      (employeeData.phone && e.phone.replace(/\D/g, '') === employeeData.phone.replace(/\D/g, '')) ||
+      (e.employeeCode.toUpperCase() === employeeData.employeeCode.toUpperCase())
+    );
+    if (existing) {
+      error('Duplicate Employee', `An employee already exists with code ${existing.employeeCode} (${existing.name}).`);
+      return { success: false, message: `An employee already exists with code ${existing.employeeCode} (${existing.name}).` };
+    }
+
+    const newEmpId = `emp-${Date.now()}`;
+    const isExecutive = creatorRole === 'owner' || creatorRole === 'admin';
+    const status = isExecutive ? ('active' as const) : ('pending_approval' as const);
+
+    // 3. Create Firebase Auth account and write users/{uid}
+    let authUid = '';
+    try {
+      const authRes = await authService.createStaffAuthAccount({
+        email: employeeData.email || `${employeeData.name.toLowerCase().replace(/\s+/g, '.')}@upstagehospital.org`,
+        pass: password || 'Hospital@2026',
+        name: employeeData.name.trim(),
+        role: employeeData.primaryRole,
+        hospitalId: hospId,
+        ownerUid: currentHospital?.ownerId || currentUser?.id || 'emp-owner',
+        employeeId: newEmpId,
+        creatorRole,
+        creatorUid: currentUser?.id
+      });
+      authUid = authRes.uid;
+    } catch (authErr: any) {
+      console.warn('Auth account creation note:', authErr);
+      if (authErr.message?.includes('Permission Denied')) {
+        error('Authorization Failed', authErr.message);
+        return { success: false, message: authErr.message };
+      }
+    }
+
+    // 4. Construct Employee Record
     const newEmp: Employee = {
       ...employeeData,
-      id: `emp-${Date.now()}`,
+      id: newEmpId,
       hospitalId: hospId,
-      status: 'pending_approval'
+      status,
+      additionalRoles: isExecutive ? (employeeData.requestedAdditionalRoles || []) : [],
+      approvalDetails: {
+        submittedBy: {
+          id: currentUser?.id || 'emp-creator',
+          name: currentUser?.name || 'Hospital Executive',
+          role: creatorRole
+        },
+        submittedAt: new Date().toISOString(),
+        reviewedBy: isExecutive ? {
+          id: currentUser?.id || 'emp-creator',
+          name: currentUser?.name || 'Hospital Executive',
+          role: creatorRole
+        } : undefined,
+        reviewedAt: isExecutive ? new Date().toISOString() : undefined,
+        status: isExecutive ? 'approved' : 'pending'
+      }
     };
+
     setEmployees(prev => [newEmp, ...prev]);
-    firestoreService.setDocument(hospId, 'employees', newEmp.id, newEmp).catch(err => console.warn(err));
-    return { success: true, message: 'Submitted for Admin review', employee: newEmp };
+    await firestoreService.setDocument(hospId, 'employees', newEmp.id, newEmp).catch(err => console.warn(err));
+
+    logAudit(
+      'EMPLOYEE_CREATED',
+      'HR & Administration',
+      `Created ${newEmp.primaryRole} account for ${newEmp.name} (${newEmp.employeeCode}). Status: ${status}`,
+      newEmp.id
+    );
+
+    const msg = isExecutive
+      ? `${newEmp.primaryRole.replace('_', ' ').toUpperCase()} account created and activated for ${newEmp.name}.`
+      : `Employee request for ${newEmp.name} submitted for Admin review.`;
+    success('Employee Created', msg);
+    return { success: true, message: msg, employee: newEmp };
   };
 
-  const approveEmployeeRequest = (employeeId: string, approvedRoles?: RoleId[]) => {
-    const updates = {
+  const approveEmployeeRequest = (employeeId: string, approvedRoles?: RoleId[], rejectedRoles?: { role: RoleId; reason?: string }[]) => {
+    const creatorRole = (currentUser?.primaryRole as RoleId) || (activeRole as RoleId) || 'admin';
+    const target = employees.find(e => e.id === employeeId);
+
+    // Concurrency / hierarchy check: Admin cannot approve Admin or Owner
+    if (creatorRole !== 'owner' && (target?.primaryRole === 'admin' || target?.primaryRole === 'owner')) {
+      error('Permission Denied', 'Only Hospital Owner can approve or activate Admin/Owner accounts.');
+      return;
+    }
+
+    if (currentUser?.id === employeeId) {
+      error('Permission Denied', 'Self-approval is strictly prohibited.');
+      return;
+    }
+
+    const updates: Partial<Employee> = {
       status: 'active' as const,
-      ...(approvedRoles ? { additionalRoles: approvedRoles } : {})
+      ...(approvedRoles ? { additionalRoles: approvedRoles } : {}),
+      ...(rejectedRoles ? { rejectedAdditionalRoles: rejectedRoles } : {}),
+      approvalDetails: {
+        submittedBy: target?.approvalDetails?.submittedBy || {
+          id: 'hr-user',
+          name: 'HR Staff',
+          role: 'hr_manager'
+        },
+        submittedAt: target?.approvalDetails?.submittedAt || new Date().toISOString(),
+        reviewedBy: {
+          id: currentUser?.id || 'admin-user',
+          name: currentUser?.name || 'Administrator',
+          role: creatorRole
+        },
+        reviewedAt: new Date().toISOString(),
+        status: 'approved'
+      }
     };
+
     setEmployees(prev => prev.map(e => e.id === employeeId ? {
       ...e,
       ...updates
@@ -1143,6 +1283,20 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateEmployee = (employeeId: string, updates: Partial<Employee>) => {
+    const creatorRole = (currentUser?.primaryRole as RoleId) || (activeRole as RoleId);
+
+    // Prevent self-role modification
+    if (currentUser?.id === employeeId && updates.primaryRole && updates.primaryRole !== currentUser.primaryRole) {
+      error('Permission Denied', 'Staff cannot modify their own role.');
+      return;
+    }
+
+    // Admin cannot promote anyone to Admin or Owner
+    if (creatorRole !== 'owner' && (updates.primaryRole === 'admin' || updates.primaryRole === 'owner')) {
+      error('Permission Denied', 'Only Hospital Owner can assign Admin or Owner roles.');
+      return;
+    }
+
     setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, ...updates } : e));
     firestoreService.updateDocument(hospId, 'employees', employeeId, updates).catch(err => console.warn(err));
   };

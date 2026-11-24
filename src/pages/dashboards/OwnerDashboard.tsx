@@ -152,8 +152,15 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
           </p>
         </div>
 
-        {/* Quick Org Pill */}
+        {/* Quick Org Pill & Staff Action */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigateTab('employees')}
+            className="text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-1.5 rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+          >
+            <Users className="w-3.5 h-3.5" />
+            Staff Management & Roles
+          </button>
           <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-3.5 py-1.5 rounded-full border border-emerald-200/80 flex items-center gap-2 shadow-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             All 17 Hospital Roles Online

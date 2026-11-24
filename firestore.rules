@@ -66,12 +66,13 @@ service cloud.firestore {
     // USER PROFILES: users/{uid}
     // ==========================================
     match /users/{userId} {
-      // User can read and write their own profile
+      // User can read and write their own profile; Admin/Owner can read staff profiles
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin(resource.data.hospitalId));
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      // Critical: User cannot alter their own role, hospitalId or status
+      allow create: if isAuthenticated();
+      // Owner can update any user; Admin can update non-admin/non-owner users; Users cannot alter role, hospitalId, or status
       allow update: if isAuthenticated() && (
-        isAdmin(resource.data.hospitalId) ||
+        isOwner(resource.data.hospitalId) ||
+        (isAdmin(resource.data.hospitalId) && request.resource.data.role != 'owner' && request.resource.data.role != 'admin') ||
         (request.auth.uid == userId &&
          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'hospitalId', 'status']))
       );
@@ -91,15 +92,35 @@ service cloud.firestore {
       // 1. EMPLOYEES: hospitals/{hospitalId}/employees/{employeeId}
       match /employees/{employeeId} {
         allow read: if belongsToHospital(hospitalId);
-        // HR can submit new employees, but cannot assign owner or admin roles
-        allow create: if (isHR(hospitalId) || isAdmin(hospitalId)) &&
-                         request.resource.data.primaryRole != 'owner' &&
-                         request.resource.data.primaryRole != 'admin';
-        // Only Admin or Owner can approve/activate employee or modify roles
-        allow update: if isAdmin(hospitalId) || (
-          isHR(hospitalId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'primaryRole', 'additionalRoles'])
+
+        // Employee Creation Hierarchy:
+        // - Hospital Owner can create Admin, HR Manager, and all clinical/operational staff roles (cannot create Owner)
+        // - Hospital Admin can create HR Manager and permitted staff roles (strictly CANNOT create Owner or Admin)
+        // - HR Manager can only create permitted staff roles (strictly CANNOT create Owner, Admin, or HR)
+        // - Cross-hospital creation blocked (hospitalId must match)
+        allow create: if belongsToHospital(hospitalId) &&
+                         request.resource.data.hospitalId == hospitalId && (
+                           (isOwner(hospitalId) && request.resource.data.primaryRole != 'owner') ||
+                           (isAdmin(hospitalId) && request.resource.data.primaryRole != 'owner' && request.resource.data.primaryRole != 'admin') ||
+                           (isHR(hospitalId) && request.resource.data.primaryRole != 'owner' && request.resource.data.primaryRole != 'admin' && request.resource.data.primaryRole != 'hr_manager')
+                         );
+
+        // Employee Updates:
+        // - Owner can update any employee record in their hospital
+        // - Admin can update employees, but CANNOT assign Admin or Owner roles, and CANNOT alter their own role
+        // - HR can update standard operational fields, but CANNOT alter status, primaryRole, or additionalRoles
+        // - No user can promote themselves or change their own role
+        allow update: if belongsToHospital(hospitalId) && (
+          isOwner(hospitalId) ||
+          (isAdmin(hospitalId) &&
+           request.resource.data.primaryRole != 'owner' &&
+           request.resource.data.primaryRole != 'admin' &&
+           (!resource.data.diff(request.resource.data).affectedKeys().hasAny(['primaryRole', 'additionalRoles']) || resource.data.id != request.auth.uid)) ||
+          (isHR(hospitalId) &&
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'primaryRole', 'additionalRoles']))
         );
-        allow delete: if isAdmin(hospitalId);
+
+        allow delete: if isOwner(hospitalId);
       }
 
       // 2. ROLE REQUESTS: hospitals/{hospitalId}/roleRequests/{requestId}

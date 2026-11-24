@@ -107,10 +107,54 @@ export const EmployeeManagementPage: React.FC = () => {
     return `EMP-${maxNum + 1}`;
   };
 
+  const creatorRole: RoleId = (currentUser?.primaryRole as RoleId) || (activeRole as RoleId) || 'hr_manager';
+
+  // Dynamic Role Dropdown Logic:
+  // - Hospital Owner: Admin, HR Manager, and all clinical/operational staff roles.
+  // - Hospital Admin: HR Manager and all clinical/operational staff roles (Admin and Owner hidden).
+  // - HR Manager: Existing permitted staff roles only (Admin, Owner, and HR hidden).
+  const allowedRoles = React.useMemo(() => {
+    const baseStaffRoles: { id: RoleId; label: string; group: string }[] = [
+      { id: 'doctor', label: 'Doctor / Physician', group: 'Clinical' },
+      { id: 'nurse', label: 'Staff Nurse', group: 'Clinical' },
+      { id: 'lab_technician', label: 'Lab Technician', group: 'Diagnostics' },
+      { id: 'pharmacist', label: 'Pharmacist', group: 'Pharmacy' },
+      { id: 'radiologist', label: 'Radiology Technician', group: 'Diagnostics' },
+      { id: 'receptionist', label: 'Receptionist / Front Desk', group: 'Operations' },
+      { id: 'billing_staff', label: 'Billing Staff / Cashier', group: 'Operations' },
+      { id: 'ward_incharge', label: 'Ward In-charge', group: 'Operations' },
+      { id: 'store_manager', label: 'Store & Inventory Manager', group: 'Operations' },
+      { id: 'accountant', label: 'Hospital Accountant', group: 'Administration' },
+      { id: 'ambulance_driver', label: 'Ambulance Driver', group: 'Support' },
+      { id: 'housekeeping', label: 'Housekeeping Staff', group: 'Support' },
+      { id: 'security', label: 'Security Officer', group: 'Support' },
+      { id: 'maintenance', label: 'Maintenance / Biomedical Tech', group: 'Support' }
+    ];
+
+    if (creatorRole === 'owner') {
+      return [
+        { id: 'admin' as RoleId, label: 'Hospital Admin', group: 'Management' },
+        { id: 'hr_manager' as RoleId, label: 'HR Manager', group: 'Management' },
+        ...baseStaffRoles
+      ];
+    }
+
+    if (creatorRole === 'admin') {
+      return [
+        { id: 'hr_manager' as RoleId, label: 'HR Manager', group: 'Management' },
+        ...baseStaffRoles
+      ];
+    }
+
+    // HR Manager or other roles: staff only
+    return baseStaffRoles;
+  }, [creatorRole]);
+
   const [formName, setFormName] = useState('');
   const [formCode, setFormCode] = useState(generateNewEmpCode());
   const [formMobile, setFormMobile] = useState('');
   const [formEmail, setFormEmail] = useState('');
+  const [formPassword, setFormPassword] = useState('Hospital@2026');
   const [formAddress, setFormAddress] = useState('');
   const [formDob, setFormDob] = useState('1992-05-14');
   const [formGender, setFormGender] = useState<'Male' | 'Female' | 'Other'>('Male');
@@ -122,10 +166,33 @@ export const EmployeeManagementPage: React.FC = () => {
   const [formAdditionalRoles, setFormAdditionalRoles] = useState<RoleId[]>([]);
   const [formQualification, setFormQualification] = useState('');
   const [formLicense, setFormLicense] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Synchronize primary role selection if not permitted for current creator
+  React.useEffect(() => {
+    if (!allowedRoles.some(r => r.id === formPrimaryRole)) {
+      setFormPrimaryRole(allowedRoles[0]?.id || 'doctor');
+    }
+  }, [allowedRoles, formPrimaryRole]);
 
   const handlePrimaryRoleChange = (newRole: RoleId) => {
     setFormPrimaryRole(newRole);
     setFormAdditionalRoles(prev => prev.filter(r => r !== newRole));
+
+    // Smart default designation & department
+    if (newRole === 'admin') {
+      setFormDesignation('Chief Operating Officer / Hospital Admin');
+      const adminDept = departments.find(d => d.id === 'dept-admin' || d.name.toLowerCase().includes('admin'));
+      if (adminDept) setFormDeptId(adminDept.id);
+    } else if (newRole === 'hr_manager') {
+      setFormDesignation('Head of Human Resources / HR Manager');
+      const adminDept = departments.find(d => d.id === 'dept-admin' || d.name.toLowerCase().includes('admin'));
+      if (adminDept) setFormDeptId(adminDept.id);
+    } else if (newRole === 'doctor') {
+      setFormDesignation('Consultant Physician');
+    } else if (newRole === 'nurse') {
+      setFormDesignation('Staff Nurse');
+    }
   };
 
   const handleToggleAdditionalRole = (roleId: RoleId) => {
@@ -140,72 +207,65 @@ export const EmployeeManagementPage: React.FC = () => {
   const [formAllowances, setFormAllowances] = useState('15000');
   const [formDeductions, setFormDeductions] = useState('6000');
 
-  // Allowed primary employee roles (Owner and Admin are strictly protected!)
-  const ALLOWED_EMPLOYEE_ROLES: { id: RoleId; label: string; group: string }[] = [
-    { id: 'doctor', label: 'Doctor / Physician', group: 'Clinical' },
-    { id: 'nurse', label: 'Staff Nurse', group: 'Clinical' },
-    { id: 'lab_technician', label: 'Lab Technician', group: 'Diagnostics' },
-    { id: 'pharmacist', label: 'Pharmacist', group: 'Pharmacy' },
-    { id: 'radiologist', label: 'Radiology Technician', group: 'Diagnostics' },
-    { id: 'receptionist', label: 'Receptionist / Front Desk', group: 'Operations' },
-    { id: 'billing_staff', label: 'Billing Staff / Cashier', group: 'Operations' },
-    { id: 'ward_incharge', label: 'Ward In-charge', group: 'Operations' },
-    { id: 'store_manager', label: 'Store & Inventory Manager', group: 'Operations' },
-    { id: 'accountant', label: 'Hospital Accountant', group: 'Administration' },
-    { id: 'ambulance_driver', label: 'Ambulance Driver', group: 'Support' },
-    { id: 'housekeeping', label: 'Housekeeping Staff', group: 'Support' },
-    { id: 'security', label: 'Security Officer', group: 'Support' },
-    { id: 'maintenance', label: 'Maintenance / Biomedical Tech', group: 'Support' }
-  ];
-
-  const handleAddEmployeeSubmit = (e: React.FormEvent) => {
+  const handleAddEmployeeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formMobile.trim() || !formCode.trim()) return;
 
-    const selectedDept = departments.find(d => d.id === formDeptId);
-    const basic = parseFloat(formBasicSalary) || 0;
-    const allowances = parseFloat(formAllowances) || 0;
-    const deductions = parseFloat(formDeductions) || 0;
-    const net = Math.max(0, basic + allowances - deductions);
+    if (!allowedRoles.some(r => r.id === formPrimaryRole)) {
+      alert(`Permission Denied: Your role (${creatorRole}) is not permitted to assign the ${formPrimaryRole} role.`);
+      return;
+    }
 
-    const res = submitEmployeeRequest({
-      employeeCode: formCode.trim().toUpperCase(),
-      name: formName.trim(),
-      phone: formMobile.trim(),
-      mobile: formMobile.trim(),
-      email: formEmail.trim() || `${formName.toLowerCase().replace(/\s+/g, '.')}@upstagehospital.org`,
-      address: formAddress.trim() || 'Medical Enclave, New Delhi',
-      dob: formDob,
-      gender: formGender,
-      departmentId: formDeptId,
-      departmentName: selectedDept?.name || 'General Medicine',
-      designation: formDesignation.trim(),
-      joiningDate: formJoiningDate,
-      employmentType: formEmploymentType,
-      primaryRole: formPrimaryRole,
-      requestedAdditionalRoles: formAdditionalRoles,
-      additionalRoles: [],
-      qualification: formQualification.trim() || 'Graduate Professional',
-      licenseNumber: formLicense.trim() || undefined,
-      salaryDetails: {
-        basic,
-        allowances,
-        deductions,
-        net
+    setIsSubmitting(true);
+    try {
+      const selectedDept = departments.find(d => d.id === formDeptId);
+      const basic = parseFloat(formBasicSalary) || 0;
+      const allowances = parseFloat(formAllowances) || 0;
+      const deductions = parseFloat(formDeductions) || 0;
+      const net = Math.max(0, basic + allowances - deductions);
+
+      const res = await submitEmployeeRequest({
+        employeeCode: formCode.trim().toUpperCase(),
+        name: formName.trim(),
+        phone: formMobile.trim(),
+        mobile: formMobile.trim(),
+        email: formEmail.trim() || `${formName.toLowerCase().replace(/\s+/g, '.')}@upstagehospital.org`,
+        address: formAddress.trim() || 'Medical Enclave, New Delhi',
+        dob: formDob,
+        gender: formGender,
+        departmentId: formDeptId,
+        departmentName: selectedDept?.name || 'General Medicine',
+        designation: formDesignation.trim(),
+        joiningDate: formJoiningDate,
+        employmentType: formEmploymentType,
+        primaryRole: formPrimaryRole,
+        requestedAdditionalRoles: formAdditionalRoles,
+        additionalRoles: [],
+        qualification: formQualification.trim() || 'Graduate Professional',
+        licenseNumber: formLicense.trim() || undefined,
+        salaryDetails: {
+          basic,
+          allowances,
+          deductions,
+          net
+        }
+      }, formPassword.trim() || 'Hospital@2026');
+
+      if (res.success) {
+        // Reset form
+        setFormName('');
+        setFormMobile('');
+        setFormEmail('');
+        setFormPassword('Hospital@2026');
+        setFormAddress('');
+        setFormQualification('');
+        setFormLicense('');
+        setFormAdditionalRoles([]);
+        setFormCode(generateNewEmpCode());
+        setActiveTab(creatorRole === 'owner' || creatorRole === 'admin' ? 'approved' : 'pending');
       }
-    });
-
-    if (res.success) {
-      // Reset form
-      setFormName('');
-      setFormMobile('');
-      setFormEmail('');
-      setFormAddress('');
-      setFormQualification('');
-      setFormLicense('');
-      setFormAdditionalRoles([]);
-      setFormCode(generateNewEmpCode());
-      setActiveTab('pending');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -361,7 +421,7 @@ export const EmployeeManagementPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address (Optional)</label>
                   <input
@@ -370,6 +430,18 @@ export const EmployeeManagementPage: React.FC = () => {
                     onChange={(e) => setFormEmail(e.target.value)}
                     placeholder="e.g. employee@hospital.org"
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Initial Password (for Login) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    placeholder="e.g. Hospital@2026"
+                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 font-mono outline-none"
                   />
                 </div>
 
@@ -421,11 +493,17 @@ export const EmployeeManagementPage: React.FC = () => {
                     onChange={(e) => handlePrimaryRoleChange(e.target.value as RoleId)}
                     className="w-full text-xs p-2.5 rounded-xl border border-emerald-300 bg-emerald-50/40 font-semibold text-slate-900 outline-none"
                   >
-                    {ALLOWED_EMPLOYEE_ROLES.map(r => (
+                    {allowedRoles.map(r => (
                       <option key={r.id} value={r.id}>{r.label} ({r.group})</option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-slate-400 mt-1">Owner & Admin roles are protected and cannot be assigned by HR.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {creatorRole === 'owner'
+                      ? 'Owner can assign Admin, HR Manager, and all operational staff roles.'
+                      : creatorRole === 'admin'
+                      ? 'Admin can assign HR Manager and operational staff roles. Admin and Owner roles are protected.'
+                      : 'HR Manager can assign operational staff roles. Admin and Owner roles are protected.'}
+                  </p>
                 </div>
 
                 <div>
@@ -471,7 +549,7 @@ export const EmployeeManagementPage: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
-                  {ALLOWED_EMPLOYEE_ROLES.filter(r => r.id !== formPrimaryRole).map(role => {
+                  {allowedRoles.filter(r => r.id !== formPrimaryRole).map(role => {
                     const isChecked = formAdditionalRoles.includes(role.id);
                     return (
                       <label
@@ -504,12 +582,12 @@ export const EmployeeManagementPage: React.FC = () => {
                   {/* Primary Role Chip */}
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                    Primary: {ALLOWED_EMPLOYEE_ROLES.find(r => r.id === formPrimaryRole)?.label || formPrimaryRole}
+                    Primary: {allowedRoles.find(r => r.id === formPrimaryRole)?.label || formPrimaryRole}
                   </span>
 
                   {/* Additional Role Chips */}
                   {formAdditionalRoles.map(roleId => {
-                    const rObj = ALLOWED_EMPLOYEE_ROLES.find(r => r.id === roleId);
+                    const rObj = allowedRoles.find(r => r.id === roleId);
                     return (
                       <span
                         key={roleId}
@@ -623,8 +701,14 @@ export const EmployeeManagementPage: React.FC = () => {
             {/* Notice & Submit Action */}
             <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="text-xs text-slate-500 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                <span>Submitted by HR: <strong>{currentUser?.name || 'Kavita Nambiar'}</strong>. Awaiting Admin verification.</span>
+                <AlertCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>
+                  {creatorRole === 'owner'
+                    ? <>Created by Owner: <strong>{currentUser?.name || 'Hospital Owner'}</strong>. Account active immediately.</>
+                    : creatorRole === 'admin'
+                    ? <>Created by Admin: <strong>{currentUser?.name || 'Hospital Admin'}</strong>. Account active immediately.</>
+                    : <>Submitted by HR: <strong>{currentUser?.name || 'HR Manager'}</strong>. Awaiting Admin verification.</>}
+                </span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -637,9 +721,14 @@ export const EmployeeManagementPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
                 >
-                  Submit for Admin Approval
+                  {isSubmitting
+                    ? 'Creating Account...'
+                    : creatorRole === 'owner' || creatorRole === 'admin'
+                    ? 'Create & Activate Account'
+                    : 'Submit for Admin Approval'}
                 </button>
               </div>
             </div>
