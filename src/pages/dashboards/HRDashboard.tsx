@@ -81,6 +81,7 @@ export const HRDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+    </div>
 
       {/* TAB 1: EMPLOYEE DIRECTORY WITH DYNAMIC ROLES */}
       {activeTab === 'directory' && (

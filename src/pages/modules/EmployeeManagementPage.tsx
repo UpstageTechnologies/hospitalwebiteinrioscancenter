@@ -14,6 +14,7 @@ import {
   Eye,
   Building,
   Shield,
+  ShieldCheck,
   CreditCard,
   Phone,
   Mail,

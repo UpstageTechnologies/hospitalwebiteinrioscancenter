@@ -15,7 +15,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import type { Firestore, Unsubscribe } from 'firebase/firestore';
-import { db as hospitalDb } from './firebase';
+import { getFirebaseDb } from './firebase';
 
 // ============================================================================
 // KADAI POS FIREBASE CONFIGURATION (scaner-billing)
@@ -47,7 +47,7 @@ export function getKadaiPosDb(): Firestore {
     return kadaiDb;
   } catch (err) {
     console.warn("Initializing secondary Kadai POS Firebase app failed, fallback to hospital DB:", err);
-    return hospitalDb;
+    return getFirebaseDb();
   }
 }
 
@@ -217,7 +217,7 @@ export async function verifyAndConnectKadaiPosUser(
 
     // Save connection under hospital settings in Hospital Cloud DB
     try {
-      const connRef = doc(hospitalDb, "hospitals", hospitalId, "settings", "kadaiPosConnection");
+      const connRef = doc(getFirebaseDb(), "hospitals", hospitalId, "settings", "kadaiPosConnection");
       await setDoc(connRef, {
         ...connection,
         updatedAt: serverTimestamp(),
@@ -246,7 +246,7 @@ export async function disconnectKadaiPos(hospitalId: string): Promise<boolean> {
     cachedRooms = [];
 
     try {
-      const connRef = doc(hospitalDb, "hospitals", hospitalId, "settings", "kadaiPosConnection");
+      const connRef = doc(getFirebaseDb(), "hospitals", hospitalId, "settings", "kadaiPosConnection");
       await setDoc(connRef, {
         status: "disconnected",
         disconnectedAt: serverTimestamp(),
@@ -268,7 +268,7 @@ export async function disconnectKadaiPos(hospitalId: string): Promise<boolean> {
 // ============================================================================
 export async function getStoredPosConnection(hospitalId: string): Promise<PosConnection | null> {
   try {
-    const connRef = doc(hospitalDb, "hospitals", hospitalId, "settings", "kadaiPosConnection");
+    const connRef = doc(getFirebaseDb(), "hospitals", hospitalId, "settings", "kadaiPosConnection");
     const snap = await getDoc(connRef);
     if (snap.exists()) {
       const data = snap.data() as PosConnection;
