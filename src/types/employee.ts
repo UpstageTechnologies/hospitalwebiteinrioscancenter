@@ -28,6 +28,9 @@ export interface Employee {
   id: string;
   hospitalId: string;
   employeeCode: string; // e.g. EMP-101
+  employeeLoginId?: string; // e.g. RIO@2026DO001 or UPH@2026DO001
+  authUid?: string;
+  syntheticEmail?: string;
   name: string;
   email?: string;
   phone: string; // Mobile Number

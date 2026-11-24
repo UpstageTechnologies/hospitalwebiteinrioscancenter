@@ -263,6 +263,11 @@ service cloud.firestore {
         allow read: if belongsToHospital(hospitalId);
         allow write: if belongsToHospital(hospitalId);
       }
+
+      // 17. COUNTERS (for collision-free sequential Employee Login IDs):
+      match /counters/{counterId} {
+        allow read, write: if belongsToHospital(hospitalId);
+      }
     }
   }
 }

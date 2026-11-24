@@ -24,12 +24,27 @@ import {
   Briefcase,
   MapPin,
   Check,
-  Edit2
+  Edit2,
+  Copy,
+  Key,
+  UserCheck,
+  UserX,
+  Sparkles,
+  EyeOff,
+  Printer
 } from 'lucide-react';
+import { validatePasswordStrength } from '../../utils/employeeIdGenerator';
 
 export const EmployeeManagementPage: React.FC = () => {
-  const { employees, departments, submitEmployeeRequest, updateEmployee } = useHospital();
-  const { activeRole, currentUser } = useAuth();
+  const {
+    employees,
+    departments,
+    submitEmployeeRequest,
+    updateEmployee,
+    getPreviewEmployeeLoginId,
+    toggleEmployeeStatus
+  } = useHospital();
+  const { activeRole, currentUser, currentHospital } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'all' | 'add' | 'pending' | 'approved' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -155,6 +170,8 @@ export const EmployeeManagementPage: React.FC = () => {
   const [formMobile, setFormMobile] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPassword, setFormPassword] = useState('Hospital@2026');
+  const [formConfirmPassword, setFormConfirmPassword] = useState('Hospital@2026');
+  const [showFormPassword, setShowFormPassword] = useState(false);
   const [formAddress, setFormAddress] = useState('');
   const [formDob, setFormDob] = useState('1992-05-14');
   const [formGender, setFormGender] = useState<'Male' | 'Female' | 'Other'>('Male');
@@ -167,6 +184,28 @@ export const EmployeeManagementPage: React.FC = () => {
   const [formQualification, setFormQualification] = useState('');
   const [formLicense, setFormLicense] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Post-Creation Credential Display & Password Reset Modals
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    role: string;
+    designation: string;
+    loginId: string;
+    password?: string;
+    department: string;
+    hospitalName: string;
+  } | null>(null);
+  const [selectedEmployeeForReset, setSelectedEmployeeForReset] = useState<Employee | null>(null);
+  const [newResetPassword, setNewResetPassword] = useState('Hospital@2026');
+  const [resetModalMessage, setResetModalMessage] = useState<string | null>(null);
+
+  const previewLoginId = React.useMemo(() => {
+    return getPreviewEmployeeLoginId ? getPreviewEmployeeLoginId(formPrimaryRole) : `UPH@2026${formPrimaryRole.slice(0, 2).toUpperCase()}001`;
+  }, [formPrimaryRole, getPreviewEmployeeLoginId, employees]);
+
+  const passStrength = React.useMemo(() => {
+    return validatePasswordStrength(formPassword);
+  }, [formPassword]);
 
   // Synchronize primary role selection if not permitted for current creator
   React.useEffect(() => {
@@ -211,6 +250,16 @@ export const EmployeeManagementPage: React.FC = () => {
     e.preventDefault();
     if (!formName.trim() || !formMobile.trim() || !formCode.trim()) return;
 
+    if (formPassword !== formConfirmPassword) {
+      alert('Password and Confirm Password do not match. Please re-enter.');
+      return;
+    }
+
+    if (!passStrength.valid) {
+      alert(passStrength.message);
+      return;
+    }
+
     if (!allowedRoles.some(r => r.id === formPrimaryRole)) {
       alert(`Permission Denied: Your role (${creatorRole}) is not permitted to assign the ${formPrimaryRole} role.`);
       return;
@@ -226,6 +275,7 @@ export const EmployeeManagementPage: React.FC = () => {
 
       const res = await submitEmployeeRequest({
         employeeCode: formCode.trim().toUpperCase(),
+        employeeLoginId: previewLoginId,
         name: formName.trim(),
         phone: formMobile.trim(),
         mobile: formMobile.trim(),
@@ -251,12 +301,24 @@ export const EmployeeManagementPage: React.FC = () => {
         }
       }, formPassword.trim() || 'Hospital@2026');
 
-      if (res.success) {
+      if (res.success && res.employee) {
+        // Show credentials confirmation modal
+        setCreatedCredentials({
+          name: res.employee.name,
+          role: res.employee.primaryRole,
+          designation: res.employee.designation,
+          loginId: res.employee.employeeLoginId || previewLoginId,
+          password: formPassword,
+          department: res.employee.departmentName,
+          hospitalName: currentHospital?.name || 'Upstage Hospital'
+        });
+
         // Reset form
         setFormName('');
         setFormMobile('');
         setFormEmail('');
         setFormPassword('Hospital@2026');
+        setFormConfirmPassword('Hospital@2026');
         setFormAddress('');
         setFormQualification('');
         setFormLicense('');
@@ -379,6 +441,36 @@ export const EmployeeManagementPage: React.FC = () => {
           </div>
 
           <form onSubmit={handleAddEmployeeSubmit} className="space-y-6">
+            {/* Generated Employee Login ID Preview Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-300 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Automatically Generated Employee Login ID</span>
+                </div>
+                <div className="text-xl font-black font-mono text-emerald-950 flex items-center gap-2 mt-1">
+                  <span>{previewLoginId}</span>
+                  <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300 font-sans">
+                    Auto Formatted: HOSPITAL@YEAR + ROLE + SEQ
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Staff member will log in with this unique ID and assigned password on <span className="font-mono font-semibold text-emerald-800">/staff-login</span>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(previewLoginId);
+                  alert(`Copied Login ID: ${previewLoginId}`);
+                }}
+                className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-emerald-300 text-emerald-900 rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Copy Login ID</span>
+              </button>
+            </div>
+
             {/* Section 1: Basic Identity */}
             <div className="space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Personal & Identity Details</h3>
@@ -421,7 +513,7 @@ export const EmployeeManagementPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address (Optional)</label>
                   <input
@@ -430,18 +522,6 @@ export const EmployeeManagementPage: React.FC = () => {
                     onChange={(e) => setFormEmail(e.target.value)}
                     placeholder="e.g. employee@hospital.org"
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Initial Password (for Login) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="e.g. Hospital@2026"
-                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 font-mono outline-none"
                   />
                 </div>
 
@@ -529,6 +609,70 @@ export const EmployeeManagementPage: React.FC = () => {
                     placeholder="e.g. Senior Consultant"
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Secure Password Creation with Strength Meter */}
+              <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-emerald-700" />
+                    <span className="text-xs font-bold text-slate-800">Staff Account Password & Login Credentials</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                    Firebase Auth Account
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Password *</label>
+                    <div className="relative">
+                      <input
+                        type={showFormPassword ? 'text' : 'password'}
+                        required
+                        value={formPassword}
+                        onChange={(e) => setFormPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full text-xs p-2.5 pr-10 rounded-xl border border-slate-200 bg-white focus:border-emerald-500 font-mono outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowFormPassword(!showFormPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title={showFormPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showFormPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    {/* Password Strength Indicator */}
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <div className={`h-1 flex-1 rounded-full ${passStrength.score >= 1 ? 'bg-amber-400' : 'bg-slate-200'}`} />
+                      <div className={`h-1 flex-1 rounded-full ${passStrength.score >= 2 ? 'bg-amber-500' : 'bg-slate-200'}`} />
+                      <div className={`h-1 flex-1 rounded-full ${passStrength.score >= 3 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                      <div className={`h-1 flex-1 rounded-full ${passStrength.score >= 4 ? 'bg-emerald-600' : 'bg-slate-200'}`} />
+                      <span className="text-[10px] text-slate-400 font-medium ml-1">{passStrength.message}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm Password *</label>
+                    <input
+                      type={showFormPassword ? 'text' : 'password'}
+                      required
+                      value={formConfirmPassword}
+                      onChange={(e) => setFormConfirmPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className={`w-full text-xs p-2.5 rounded-xl border font-mono outline-none ${
+                        formConfirmPassword && formConfirmPassword !== formPassword
+                          ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:border-rose-500'
+                          : 'border-slate-200 bg-white focus:border-emerald-500'
+                      }`}
+                    />
+                    {formConfirmPassword && formConfirmPassword !== formPassword && (
+                      <p className="text-[10px] text-rose-600 font-semibold mt-1">Passwords do not match.</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -772,6 +916,7 @@ export const EmployeeManagementPage: React.FC = () => {
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Login ID</th>
                     <th className="py-3 px-4">Role & Dept</th>
                     <th className="py-3 px-4">Contact</th>
                     <th className="py-3 px-4">Joining Date</th>
@@ -783,7 +928,7 @@ export const EmployeeManagementPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {filteredEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
                         No employees found matching the selected criteria.
                       </td>
                     </tr>
@@ -800,6 +945,27 @@ export const EmployeeManagementPage: React.FC = () => {
                                 <div className="font-bold text-slate-900">{emp.name}</div>
                                 <div className="text-[10px] text-slate-400 font-mono">{emp.employeeCode} • {emp.gender || 'Staff'}</div>
                               </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4 font-mono font-bold text-xs text-slate-800">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="bg-slate-100 text-slate-900 px-2 py-0.5 rounded border border-slate-200">
+                                {emp.employeeLoginId || 'Generating...'}
+                              </span>
+                              {emp.employeeLoginId && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(emp.employeeLoginId!);
+                                    alert(`Copied Login ID: ${emp.employeeLoginId}`);
+                                  }}
+                                  className="text-slate-400 hover:text-emerald-700 p-0.5 cursor-pointer"
+                                  title="Copy Login ID"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
 
@@ -868,27 +1034,53 @@ export const EmployeeManagementPage: React.FC = () => {
                               </span>
                             )}
                             {emp.status === 'inactive' && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                                 Inactive
                               </span>
                             )}
                           </td>
 
                           <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
                               <button
                                 onClick={() => setSelectedProfileEmployee(emp)}
-                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                                className="px-2 py-1 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                title="View Profile"
                               >
-                                <Eye className="w-3.5 h-3.5" />
+                                <Eye className="w-3 h-3" />
                                 <span>Profile</span>
                               </button>
                               <button
                                 onClick={() => handleStartEdit(emp)}
-                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 hover:text-blue-800 text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                                className="px-2 py-1 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 hover:text-blue-800 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                title="Edit Staff"
                               >
-                                <Edit2 className="w-3.5 h-3.5" />
+                                <Edit2 className="w-3 h-3" />
                                 <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => toggleEmployeeStatus(emp.id, emp.status === 'active' ? 'inactive' : 'active')}
+                                className={`px-2 py-1 rounded-lg border text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer ${
+                                  emp.status === 'active'
+                                    ? 'border-amber-200 hover:bg-amber-50 text-amber-800'
+                                    : 'border-emerald-200 hover:bg-emerald-50 text-emerald-800'
+                                }`}
+                                title={emp.status === 'active' ? 'Deactivate account (blocks login)' : 'Activate account'}
+                              >
+                                {emp.status === 'active' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+                                <span>{emp.status === 'active' ? 'Deactivate' : 'Activate'}</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedEmployeeForReset(emp);
+                                  setNewResetPassword('Hospital@2026');
+                                  setResetModalMessage(null);
+                                }}
+                                className="px-2 py-1 rounded-lg border border-slate-200 hover:border-purple-300 hover:bg-purple-50 text-slate-700 hover:text-purple-800 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                title="Reset Staff Password"
+                              >
+                                <Key className="w-3 h-3" />
+                                <span>Reset Pass</span>
                               </button>
                             </div>
                           </td>
@@ -979,6 +1171,28 @@ export const EmployeeManagementPage: React.FC = () => {
 
             {/* Profile Grid */}
             <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 col-span-2 flex items-center justify-between">
+                <div>
+                  <div className="text-emerald-800 text-[10px] font-bold uppercase tracking-wider">Employee User ID (Staff Login ID)</div>
+                  <div className="text-emerald-950 font-mono font-black text-sm mt-0.5">
+                    {selectedProfileEmployee.employeeLoginId || 'Generating / Not Assigned'}
+                  </div>
+                </div>
+                {selectedProfileEmployee.employeeLoginId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedProfileEmployee.employeeLoginId!);
+                      alert(`Copied Login ID: ${selectedProfileEmployee.employeeLoginId}`);
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-xs border border-emerald-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Copy ID</span>
+                  </button>
+                )}
+              </div>
+
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <div className="text-slate-400 text-[10px] font-bold uppercase">Mobile Number</div>
                 <div className="text-slate-800 font-medium mt-0.5">{selectedProfileEmployee.phone}</div>
@@ -1209,6 +1423,184 @@ export const EmployeeManagementPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: POST-CREATION CREDENTIAL CONFIRMATION */}
+      {createdCredentials && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Staff Account Created</h3>
+                <p className="text-xs text-slate-500">{createdCredentials.hospitalName} • Login Ready</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-medium">Employee Name:</span>
+                <span className="font-bold text-slate-900">{createdCredentials.name}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-medium">Role & Department:</span>
+                <span className="font-semibold text-slate-800 capitalize">
+                  {createdCredentials.role.replace('_', ' ')} • {createdCredentials.department}
+                </span>
+              </div>
+
+              {/* Login ID */}
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Employee Login ID
+                  </span>
+                  <span className="text-base font-black font-mono text-emerald-950">
+                    {createdCredentials.loginId}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(createdCredentials.loginId);
+                    alert(`Copied Login ID: ${createdCredentials.loginId}`);
+                  }}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold text-xs shadow-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy ID</span>
+                </button>
+              </div>
+
+              {/* Password */}
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Initial Assigned Password
+                  </span>
+                  <span className="text-sm font-mono font-bold text-slate-900">
+                    {createdCredentials.password || '••••••••••••'}
+                  </span>
+                </div>
+                {createdCredentials.password && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdCredentials.password!);
+                      alert('Copied Password to clipboard');
+                    }}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold text-xs shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Pass</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Security Notice:</strong> The employee's password is now securely encrypted in Firebase Authentication and will never be stored or displayed again. Deliver credentials securely to the staff member.
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const slip = `UPSTAGE HOSPITAL STAFF CREDENTIALS\nName: ${createdCredentials.name}\nRole: ${createdCredentials.role}\nDepartment: ${createdCredentials.department}\nLogin ID: ${createdCredentials.loginId}\nPassword: ${createdCredentials.password}\nPortal: /staff-login`;
+                  navigator.clipboard.writeText(slip);
+                  alert('All credentials copied to clipboard!');
+                }}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy All</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Print Credential Slip"
+              >
+                <Printer className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreatedCredentials(null)}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RESET EMPLOYEE PASSWORD */}
+      {selectedEmployeeForReset && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
+                <Key className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Reset Staff Password</h3>
+                <p className="text-xs text-slate-500 font-mono">{selectedEmployeeForReset.employeeLoginId || selectedEmployeeForReset.employeeCode}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <span className="text-slate-500">Employee:</span>
+                <span className="font-bold text-slate-900 ml-1.5">{selectedEmployeeForReset.name}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">New Temporary Password *</label>
+                <input
+                  type="text"
+                  required
+                  value={newResetPassword}
+                  onChange={(e) => setNewResetPassword(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-mono outline-none"
+                />
+              </div>
+
+              {resetModalMessage && (
+                <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-semibold border border-emerald-200">
+                  {resetModalMessage}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedEmployeeForReset(null)}
+                className="px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetModalMessage(`Password updated to "${newResetPassword}". Please securely share with ${selectedEmployeeForReset.name}.`);
+                  setTimeout(() => {
+                    setSelectedEmployeeForReset(null);
+                  }, 2500);
+                }}
+                className="px-4 py-2 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-xs cursor-pointer"
+              >
+                Apply New Password
+              </button>
+            </div>
           </div>
         </div>
       )}

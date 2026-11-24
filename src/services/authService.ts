@@ -21,6 +21,10 @@ import type { RoleId } from '../types/roles';
 import type { Employee } from '../types/employee';
 import type { Hospital } from '../types/hospital';
 import { DEFAULT_DEPARTMENTS } from './storageService';
+import {
+  getSyntheticEmailForLoginId,
+  normalizeLoginId
+} from '../utils/employeeIdGenerator';
 
 export const STANDARD_STAFF_ACCOUNTS: Record<string, { email: string; name: string; role: RoleId; empId: string; dept: string; designation: string }> = {
   owner: {
@@ -209,7 +213,8 @@ export class AuthService {
   // 3. Privileged Staff Account Creation with isolated secondary app instance
   // Guarantees current authenticated session (Owner/Admin) in primary app is never disrupted
   public async createStaffAuthAccount(params: {
-    email: string;
+    email?: string;
+    loginId?: string;
     pass: string;
     name: string;
     role: RoleId;
@@ -218,7 +223,7 @@ export class AuthService {
     employeeId: string;
     creatorRole: RoleId;
     creatorUid?: string;
-  }): Promise<{ uid: string; alreadyExisted: boolean }> {
+  }): Promise<{ uid: string; alreadyExisted: boolean; loginId?: string; syntheticEmail: string }> {
     // 1. Strict Hierarchy Validation
     if (params.creatorRole === 'admin') {
       if (params.role === 'admin' || params.role === 'owner') {
@@ -239,6 +244,12 @@ export class AuthService {
     let uid = '';
     let alreadyExisted = false;
 
+    // Determine synthetic authentication email for deterministic login ID mapping
+    const loginId = params.loginId ? normalizeLoginId(params.loginId) : undefined;
+    const syntheticEmail = loginId
+      ? getSyntheticEmailForLoginId(loginId)
+      : (params.email?.trim() || `${params.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@staff.upstagehospital.org`);
+
     // 2. Initialize temporary secondary FirebaseApp for isolated auth creation
     const secondaryAppName = `temp_staff_auth_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     let secondaryApp: any = null;
@@ -246,12 +257,12 @@ export class AuthService {
     try {
       secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, params.email.trim(), params.pass);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, syntheticEmail, params.pass);
       uid = cred.user.uid;
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
         alreadyExisted = true;
-        uid = `usr-${params.email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        uid = `usr-${syntheticEmail.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
       } else {
         console.warn('Firebase Auth user creation notice:', err);
         uid = `usr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -266,7 +277,9 @@ export class AuthService {
     const userProfile: UserProfileDoc = {
       uid,
       name: params.name.trim(),
-      email: params.email.trim(),
+      email: params.email?.trim() || syntheticEmail,
+      loginId,
+      syntheticEmail,
       hospitalId: params.hospitalId,
       role: params.role,
       status: 'active',
@@ -281,7 +294,88 @@ export class AuthService {
       createdAtServer: serverTimestamp()
     }, { merge: true });
 
-    return { uid, alreadyExisted };
+    return { uid, alreadyExisted, loginId, syntheticEmail };
+  }
+
+  // Staff Unified Login via User ID and Password
+  public async signInWithStaffId(
+    rawLoginId: string,
+    pass: string
+  ): Promise<{ user: FirebaseUser; profile: UserProfileDoc; employee?: Employee }> {
+    const loginId = normalizeLoginId(rawLoginId);
+    if (!loginId) {
+      throw new Error('Please enter your Employee User ID.');
+    }
+    if (!pass) {
+      throw new Error('Please enter your password.');
+    }
+
+    const syntheticEmail = getSyntheticEmailForLoginId(loginId);
+    let cred: any = null;
+
+    try {
+      cred = await signInWithEmailAndPassword(getFirebaseAuth(), syntheticEmail, pass);
+    } catch (err: any) {
+      // If direct synthetic email failed, check if user provided their full work email
+      if (rawLoginId.includes('@') && rawLoginId.includes('.')) {
+        try {
+          cred = await signInWithEmailAndPassword(getFirebaseAuth(), rawLoginId.trim(), pass);
+        } catch {
+          throw new Error('Invalid User ID or Password. Please verify your credentials.');
+        }
+      } else {
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+          throw new Error('Invalid User ID or Password. Please verify your credentials.');
+        } else if (err.code === 'auth/too-many-requests') {
+          throw new Error('Too many failed login attempts. Please wait a moment before trying again.');
+        }
+        throw new Error(err.message || 'Authentication failed. Please verify your credentials.');
+      }
+    }
+
+    // Retrieve user profile from users/{uid}
+    const profile = await this.getOrCreateUserProfile(cred.user);
+    if (profile.status === 'inactive' || profile.status === 'suspended' || profile.status === 'rejected') {
+      await signOut(getFirebaseAuth());
+      throw new Error('Your hospital staff account has been deactivated. Please contact your Hospital Administrator.');
+    }
+
+    // Retrieve staff record from hospitals/{hospId}/employees/{empId}
+    let employeeData: Employee | undefined;
+    const hospId = profile.hospitalId || 'hosp-001';
+    if (profile.employeeId) {
+      const empSnap = await getDoc(doc(getFirebaseDb(), 'hospitals', hospId, 'employees', profile.employeeId));
+      if (empSnap.exists()) {
+        employeeData = empSnap.data() as Employee;
+      }
+    }
+
+    if (employeeData && (employeeData.status === 'inactive' || employeeData.status === 'suspended')) {
+      await signOut(getFirebaseAuth());
+      throw new Error('Your hospital staff account is inactive. Please contact Hospital Administration.');
+    }
+
+    return { user: cred.user, profile, employee: employeeData };
+  }
+
+  // Toggle active/inactive status of an employee account
+  public async setEmployeeAccountStatus(
+    hospitalId: string,
+    employeeId: string,
+    uid: string | undefined,
+    status: 'active' | 'inactive'
+  ): Promise<void> {
+    await firestoreService.updateDocument(hospitalId, 'employees', employeeId, {
+      status,
+      updatedAt: new Date().toISOString()
+    });
+
+    if (uid) {
+      await setDoc(doc(getFirebaseDb(), 'users', uid), {
+        status,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(err => console.warn('Could not update users status:', err));
+    }
   }
 
   // 4. Quick Real Firebase Auth Sign In for Testing / Staff Login

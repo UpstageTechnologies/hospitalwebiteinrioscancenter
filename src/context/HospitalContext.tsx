@@ -4,6 +4,10 @@ import {
   storageService,
   DEFAULT_DEPARTMENTS
 } from '../services/storageService';
+import {
+  formatEmployeeLoginId,
+  ROLE_TWO_LETTER_CODES
+} from '../utils/employeeIdGenerator';
 import { firestoreService } from '../services/firestoreService';
 import { authService } from '../services/authService';
 import {
@@ -78,6 +82,8 @@ interface HospitalContextType {
 
   // Phase 1 Employee Management & Admin Approval
   submitEmployeeRequest: (employeeData: Omit<Employee, 'id' | 'hospitalId' | 'status' | 'approvalDetails'>, password?: string) => Promise<{ success: boolean; message: string; employee?: Employee }>;
+  getPreviewEmployeeLoginId: (role: RoleId) => string;
+  toggleEmployeeStatus: (employeeId: string, status: 'active' | 'inactive') => Promise<void>;
   approveEmployeeRequest: (employeeId: string, approvedAdditionalRoles?: RoleId[], rejectedAdditionalRoles?: { role: RoleId; reason?: string }[]) => void;
   rejectEmployeeRequest: (employeeId: string, rejectionReason: string) => void;
   updateEmployee: (employeeId: string, updates: Partial<Employee>) => void;
@@ -226,6 +232,7 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     storageService.initHospital(hospId);
+    firestoreService.backfillEmployeeLoginIds(hospId, currentHospital?.name || 'Upstage Hospital').catch(e => console.warn(e));
   }, [hospId]);
 
   const isDemo = hospId === 'hosp-001';
@@ -335,6 +342,7 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Subscriptions for Hospital Collections
   useEffect(() => {
     storageService.initHospital(hospId);
+    firestoreService.backfillEmployeeLoginIds(hospId, currentHospital?.name || 'Upstage Hospital').catch(e => console.warn(e));
 
     const unsubDepts = firestoreService.subscribeToCollection<Department>(hospId, 'departments', (data) => {
       setDepartments(data || []);
@@ -1167,11 +1175,28 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const isExecutive = creatorRole === 'owner' || creatorRole === 'admin';
     const status = isExecutive ? ('active' as const) : ('pending_approval' as const);
 
+    // Generate unique Login ID
+    let assignedLoginId = employeeData.employeeLoginId;
+    if (!assignedLoginId) {
+      try {
+        assignedLoginId = await firestoreService.getNextEmployeeLoginId(
+          hospId,
+          currentHospital?.name || 'Upstage Hospital',
+          employeeData.primaryRole
+        );
+      } catch (e) {
+        console.warn('Fallback generating Login ID:', e);
+        assignedLoginId = getPreviewEmployeeLoginId(employeeData.primaryRole);
+      }
+    }
+
     // 3. Create Firebase Auth account and write users/{uid}
     let authUid = '';
+    let syntheticEmail = '';
     try {
       const authRes = await authService.createStaffAuthAccount({
-        email: employeeData.email || `${employeeData.name.toLowerCase().replace(/\s+/g, '.')}@upstagehospital.org`,
+        loginId: assignedLoginId,
+        email: employeeData.email,
         pass: password || 'Hospital@2026',
         name: employeeData.name.trim(),
         role: employeeData.primaryRole,
@@ -1182,6 +1207,7 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         creatorUid: currentUser?.id
       });
       authUid = authRes.uid;
+      syntheticEmail = authRes.syntheticEmail;
     } catch (authErr: any) {
       console.warn('Auth account creation note:', authErr);
       if (authErr.message?.includes('Permission Denied')) {
@@ -1195,6 +1221,9 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       ...employeeData,
       id: newEmpId,
       hospitalId: hospId,
+      employeeLoginId: assignedLoginId,
+      authUid: authUid || undefined,
+      syntheticEmail: syntheticEmail || undefined,
       status,
       additionalRoles: isExecutive ? (employeeData.requestedAdditionalRoles || []) : [],
       approvalDetails: {
@@ -1229,6 +1258,27 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       : `Employee request for ${newEmp.name} submitted for Admin review.`;
     success('Employee Created', msg);
     return { success: true, message: msg, employee: newEmp };
+  };
+
+  const getPreviewEmployeeLoginId = (role: RoleId): string => {
+    const currentYear = new Date().getFullYear();
+    const roleCode = ROLE_TWO_LETTER_CODES[role] || 'ST';
+    const roleEmps = employees.filter(e => {
+      if (e.employeeLoginId) {
+        return e.employeeLoginId.includes(`@${currentYear}${roleCode}`);
+      }
+      return e.primaryRole === role;
+    });
+    const nextSeq = roleEmps.length + 1;
+    return formatEmployeeLoginId(currentHospital?.name || 'Upstage Hospital', role, nextSeq, currentYear);
+  };
+
+  const toggleEmployeeStatus = async (employeeId: string, status: 'active' | 'inactive') => {
+    const emp = employees.find(e => e.id === employeeId);
+    if (!emp) return;
+    await authService.setEmployeeAccountStatus(hospId, employeeId, emp.authUid, status);
+    setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, status } : e));
+    success('Status Updated', `Employee ${emp.name} is now ${status}.`);
   };
 
   const approveEmployeeRequest = (employeeId: string, approvedRoles?: RoleId[], rejectedRoles?: { role: RoleId; reason?: string }[]) => {
@@ -1467,6 +1517,8 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         dischargePatientFromBed,
         recordInvoicePayment,
         submitEmployeeRequest,
+        getPreviewEmployeeLoginId,
+        toggleEmployeeStatus,
         approveEmployeeRequest,
         rejectEmployeeRequest,
         updateEmployee,

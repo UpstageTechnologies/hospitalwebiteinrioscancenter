@@ -18,7 +18,11 @@ import {
   Shield
 } from 'lucide-react';
 
-export const LoginPage: React.FC = () => {
+interface LoginPageProps {
+  onSwitchToStaff?: () => void;
+}
+
+export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToStaff }) => {
   const { loginWithEmail, registerHospitalOwner, resetPassword, isAuthLoading } = useAuth();
   const { success, error: toastError, info } = useToast();
 
@@ -290,6 +294,29 @@ export const LoginPage: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* Common Staff Login Route */}
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onSwitchToStaff) {
+                      onSwitchToStaff();
+                    } else if (typeof window !== 'undefined') {
+                      window.history.pushState({}, '', '/staff-login');
+                      window.location.reload();
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <User className="w-4 h-4 text-emerald-400" />
+                  <span>Clinical Staff Login (User ID & Password)</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+                <p className="text-[10px] text-center text-slate-400">
+                  Doctors, Nurses, Receptionists, Pharmacists, Technicians & Staff
+                </p>
+              </div>
             </form>
           )}
 

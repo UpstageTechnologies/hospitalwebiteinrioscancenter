@@ -27,6 +27,7 @@ import { OwnerDashboard } from './pages/dashboards/OwnerDashboard';
 import { EmployeeDashboard } from './pages/dashboards/EmployeeDashboard';
 import { MyRolesPage } from './pages/modules/MyRolesPage';
 import { LoginPage } from './pages/auth/LoginPage';
+import { StaffLoginPage } from './pages/auth/StaffLoginPage';
 
 import { ShieldAlert, ShieldCheck, HeartPulse } from 'lucide-react';
 
@@ -74,6 +75,26 @@ const HospitalAppContent: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>(() => getDefaultTabForRole(activeRole));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Support /staff-login route and dual auth views
+  const [authView, setAuthView] = useState<'owner' | 'staff'>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/staff-login')) {
+      return 'staff';
+    }
+    return 'owner';
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/staff-login')) {
+        setAuthView('staff');
+      } else {
+        setAuthView('owner');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Keep tab updated when user switches role, and close mobile drawer
   useEffect(() => {
     setCurrentTab(getDefaultTabForRole(activeRole));
@@ -99,7 +120,28 @@ const HospitalAppContent: React.FC = () => {
   }
 
   if (!currentUser) {
-    return <LoginPage />;
+    if (authView === 'staff') {
+      return (
+        <StaffLoginPage
+          onSwitchToOwner={() => {
+            setAuthView('owner');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({}, '', '/');
+            }
+          }}
+        />
+      );
+    }
+    return (
+      <LoginPage
+        onSwitchToStaff={() => {
+          setAuthView('staff');
+          if (typeof window !== 'undefined') {
+            window.history.pushState({}, '', '/staff-login');
+          }
+        }}
+      />
+    );
   }
 
   const renderActiveModule = () => {

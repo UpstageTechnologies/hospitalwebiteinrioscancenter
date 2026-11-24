@@ -33,6 +33,10 @@ import { dispenseMedicineAtomic } from './posIntegrationService';
 import {
   DEFAULT_DEPARTMENTS
 } from './storageService';
+import {
+  formatEmployeeLoginId,
+  ROLE_TWO_LETTER_CODES
+} from '../utils/employeeIdGenerator';
 
 // Helper to recursively remove all keys with undefined values to prevent Firestore updateDoc/setDoc exceptions
 export function removeUndefinedFields<T extends Record<string, any>>(obj: T): T {
@@ -1475,6 +1479,92 @@ export class FirestoreHospitalService {
       timestamp: new Date().toISOString(),
       createdAt: serverTimestamp()
     });
+  }
+
+  // Generate next unique, collision-free Employee Login ID using Firestore transaction
+  public async getNextEmployeeLoginId(
+    hospitalId: string,
+    hospitalName: string,
+    role: RoleId,
+    year?: number
+  ): Promise<string> {
+    const dbInstance = getFirebaseDb();
+    const currentYear = year || new Date().getFullYear();
+    const roleCode = ROLE_TWO_LETTER_CODES[role] || 'ST';
+    const counterKey = `${currentYear}_${roleCode}`;
+    const counterRef = doc(dbInstance, 'hospitals', hospitalId, 'counters', 'staff_login_counters');
+
+    const generatedId = await runTransaction(dbInstance, async (transaction) => {
+      const counterSnap = await transaction.get(counterRef);
+      let currentSeq = 0;
+      if (counterSnap.exists()) {
+        const data = counterSnap.data();
+        currentSeq = Number(data[counterKey]) || 0;
+      }
+
+      let candidateSeq = currentSeq + 1;
+      let candidateId = formatEmployeeLoginId(hospitalName, role, candidateSeq, currentYear);
+
+      // Verify no collisions in employees collection
+      const empCol = collection(dbInstance, 'hospitals', hospitalId, 'employees');
+      const q = query(empCol, where('employeeLoginId', '==', candidateId));
+      const qSnap = await getDocs(q);
+
+      let isCollision = !qSnap.empty;
+      while (isCollision) {
+        candidateSeq++;
+        candidateId = formatEmployeeLoginId(hospitalName, role, candidateSeq, currentYear);
+        const nextQ = query(empCol, where('employeeLoginId', '==', candidateId));
+        const nextSnap = await getDocs(nextQ);
+        if (nextSnap.empty) {
+          isCollision = false;
+        }
+      }
+
+      transaction.set(counterRef, {
+        [counterKey]: candidateSeq,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      return candidateId;
+    });
+
+    return generatedId;
+  }
+
+  // Safe migration / backfill for existing hospital employees without an employeeLoginId
+  public async backfillEmployeeLoginIds(
+    hospitalId: string,
+    hospitalName: string
+  ): Promise<void> {
+    try {
+      const dbInstance = getFirebaseDb();
+      const empCol = collection(dbInstance, 'hospitals', hospitalId, 'employees');
+      const snap = await getDocs(empCol);
+      if (snap.empty) return;
+
+      const roleCounters: Record<string, number> = {};
+
+      for (const d of snap.docs) {
+        const emp = d.data() as Employee;
+        if (!emp.employeeLoginId) {
+          const role = emp.primaryRole || 'doctor';
+          const year = emp.joiningDate ? new Date(emp.joiningDate).getFullYear() : new Date().getFullYear();
+          const roleCode = ROLE_TWO_LETTER_CODES[role] || 'ST';
+          const key = `${year}_${roleCode}`;
+          const current = (roleCounters[key] || 0) + 1;
+          roleCounters[key] = current;
+
+          const newLoginId = formatEmployeeLoginId(hospitalName, role, current, year);
+          await updateDoc(d.ref, {
+            employeeLoginId: newLoginId,
+            updatedAt: serverTimestamp()
+          }).catch(err => console.warn('Employee login ID backfill warning:', err));
+        }
+      }
+    } catch (err) {
+      console.warn('backfillEmployeeLoginIds error:', err);
+    }
   }
 }
 

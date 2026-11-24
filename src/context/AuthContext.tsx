@@ -25,6 +25,8 @@ interface AuthContextType {
   switchHospital: (hospitalId: string) => void;
   loginAsEmployee: (employeeId: string) => void;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
+  loginWithStaffId: (loginId: string, pass: string) => Promise<void>;
+  setEmployeeAccountStatus: (employeeId: string, uid: string | undefined, status: 'active' | 'inactive') => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   registerHospitalOwner: (params: {
     hospitalName: string;
@@ -201,6 +203,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithStaffId = async (loginId: string, pass: string) => {
+    setIsAuthLoading(true);
+    try {
+      const { user, profile, employee } = await authService.signInWithStaffId(loginId, pass);
+      setFirebaseUser(user);
+      setUserProfile(profile);
+      if (employee) {
+        setCurrentUser(employee);
+        setActiveRole(employee.primaryRole);
+      } else {
+        setActiveRole(profile.role);
+      }
+      const hosp = await authService.getHospital(profile.hospitalId || 'hosp-001');
+      setCurrentHospital(hosp);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const setEmployeeAccountStatus = async (
+    employeeId: string,
+    uid: string | undefined,
+    status: 'active' | 'inactive'
+  ) => {
+    await authService.setEmployeeAccountStatus(currentHospital.id, employeeId, uid, status);
+    if (currentUser?.id === employeeId) {
+      setCurrentUser(prev => prev ? { ...prev, status } : null);
+    }
+  };
+
   const registerHospitalOwner = async (params: {
     hospitalName: string;
     ownerName: string;
@@ -290,6 +322,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchHospital,
         loginAsEmployee,
         loginWithEmail,
+        loginWithStaffId,
+        setEmployeeAccountStatus,
         resetPassword,
         registerHospitalOwner,
         signInQuickStaff,
