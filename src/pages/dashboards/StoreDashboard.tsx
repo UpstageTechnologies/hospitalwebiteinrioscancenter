@@ -32,20 +32,9 @@ export const StoreDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  const [inventory, setInventory] = useState<InventoryItem[]>([
-    { id: '1', name: 'Sterile Surgical Gloves (Size 7.5)', category: 'Surgical', currentStock: 450, minLevel: 200, unit: 'Pairs', supplier: 'MedEquip Surgical Ltd', lastRestocked: '2026-11-10', unitCost: 35 },
-    { id: '2', name: 'N95 Respirator Masks', category: 'Consumables', currentStock: 80, minLevel: 150, unit: 'Pieces', supplier: 'Apex Healthcare Supplies', lastRestocked: '2026-11-02', unitCost: 45 },
-    { id: '3', name: 'Disposable Syringes 5ml with Needle', category: 'Consumables', currentStock: 1200, minLevel: 500, unit: 'Pieces', supplier: 'Hindustan Syringes Corp', lastRestocked: '2026-11-15', unitCost: 6 },
-    { id: '4', name: 'ICU Bed Sheet & Pillowcase Set (Linen)', category: 'Linen', currentStock: 35, minLevel: 60, unit: 'Sets', supplier: 'Kaveri Hospital Textiles', lastRestocked: '2026-10-25', unitCost: 480 },
-    { id: '5', name: 'Biochemistry Analyzer Lyse Reagent 500ml', category: 'Diagnostic Reagents', currentStock: 12, minLevel: 20, unit: 'Bottles', supplier: 'Siemens Diagnostics India', lastRestocked: '2026-11-05', unitCost: 2800 },
-    { id: '6', name: 'IV Cannula 20G (Pink)', category: 'Surgical', currentStock: 650, minLevel: 300, unit: 'Units', supplier: 'BD Medical Systems', lastRestocked: '2026-11-12', unitCost: 42 }
-  ]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
-  const [purchaseOrders, setPurchaseOrders] = useState([
-    { id: 'PO-2026-081', supplier: 'Apex Healthcare Supplies', item: 'N95 Masks (500 Pcs)', amount: 22500, status: 'ordered', orderDate: '2026-11-18', eta: '2026-11-22' },
-    { id: 'PO-2026-082', supplier: 'Kaveri Hospital Textiles', item: 'Hospital Bed Sheets (100 Sets)', amount: 48000, status: 'received', orderDate: '2026-11-12', eta: '2026-11-17' },
-    { id: 'PO-2026-083', supplier: 'Siemens Diagnostics India', item: 'Biochemistry Reagent Pack', amount: 56000, status: 'pending_approval', orderDate: '2026-11-19', eta: '2026-11-25' }
-  ]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
 
   const lowStockItems = inventory.filter(i => i.currentStock <= i.minLevel);
 
@@ -171,7 +160,16 @@ export const StoreDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredInventory.map(item => {
+                  {filteredInventory.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center">
+                        <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        <div className="text-xs font-bold text-slate-700">No Inventory Items Recorded</div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Hospital consumable store, surgical stock, and diagnostic reagents.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredInventory.map(item => {
                     const isLow = item.currentStock <= item.minLevel;
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/70">
@@ -215,7 +213,7 @@ export const StoreDashboard: React.FC = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  }))}
                 </tbody>
               </table>
             </div>
@@ -244,7 +242,16 @@ export const StoreDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {purchaseOrders.map(po => (
+                {purchaseOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center">
+                      <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <div className="text-xs font-bold text-slate-700">No Purchase Orders Generated</div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Procurement orders and goods inward manifests will appear here.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  purchaseOrders.map(po => (
                   <tr key={po.id} className="hover:bg-slate-50/70">
                     <td className="py-3 px-4 font-bold font-mono text-purple-700">{po.id}</td>
                     <td className="py-3 px-4 font-semibold text-slate-800">{po.supplier}</td>
@@ -260,7 +267,7 @@ export const StoreDashboard: React.FC = () => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>

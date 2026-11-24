@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
 import { INITIAL_ROLE_TEMPLATES } from '../../constants/roleTemplates';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   Users,
   Clock,
@@ -13,13 +14,15 @@ import {
   Plus,
   Search,
   Check,
-  X
+  X,
+  HeartPulse
 } from 'lucide-react';
 
 export const HRDashboard: React.FC = () => {
   const { employees, roleRequests } = useHospital();
   const [activeTab, setActiveTab] = useState<'directory' | 'attendance' | 'payroll'>('directory');
   const [searchTerm, setSearchTerm] = useState('');
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
 
   const filteredEmployees = employees.filter(e =>
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -41,7 +44,17 @@ export const HRDashboard: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 text-xs font-semibold">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setNurseHelpOpen(true)}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Request nurse assistance"
+          >
+            <HeartPulse className="w-4 h-4 text-rose-600" />
+            <span>Nurse Help</span>
+          </button>
+
+          <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 text-xs font-semibold">
           <button
             onClick={() => setActiveTab('directory')}
             className={`px-3 py-1.5 rounded-md transition-all ${
@@ -227,6 +240,12 @@ export const HRDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Reusable Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => setNurseHelpOpen(false)}
+        defaultTaskType="Patient Assistance"
+      />
     </div>
   );
 };

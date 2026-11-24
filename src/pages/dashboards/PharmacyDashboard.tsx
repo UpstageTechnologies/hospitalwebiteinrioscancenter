@@ -3,6 +3,7 @@ import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
 import { firestoreService } from '../../services/firestoreService';
 import type { PosMedicine } from '../../services/posIntegrationService';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   Pill,
   Search,
@@ -14,7 +15,8 @@ import {
   ArrowRight,
   ShieldCheck,
   Check,
-  X
+  X,
+  HeartPulse
 } from 'lucide-react';
 
 interface QueuedPrescription {
@@ -46,6 +48,16 @@ export const PharmacyDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [prescriptionsQueue, setPrescriptionsQueue] = useState<QueuedPrescription[]>([]);
   const [dispensingId, setDispensingId] = useState<string | null>(null);
+
+  // Nurse Help Dialog State
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
+  const [nurseHelpContext, setNurseHelpContext] = useState<{
+    patientId?: string;
+    patientName?: string;
+    patientUhid?: string;
+    defaultTaskType?: string;
+    clinicalOrderDetails?: any;
+  } | null>(null);
 
   // Subscribe to real-time prescriptions subcollection
   useEffect(() => {
@@ -118,8 +130,22 @@ export const PharmacyDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
+        {/* Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              setNurseHelpContext({ defaultTaskType: 'Injection Administration' });
+              setNurseHelpOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Request nurse assistance for medicine administration or injection"
+          >
+            <HeartPulse className="w-4 h-4 text-rose-600" />
+            <span>Nurse Help</span>
+          </button>
+
+          {/* Tab Switcher */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
           <button
             onClick={() => setActiveTab('queue')}
             className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
@@ -140,6 +166,7 @@ export const PharmacyDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+    </div>
 
       {/* Search Bar */}
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
@@ -344,6 +371,19 @@ export const PharmacyDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Reusable Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => {
+          setNurseHelpOpen(false);
+          setNurseHelpContext(null);
+        }}
+        patientId={nurseHelpContext?.patientId}
+        patientName={nurseHelpContext?.patientName}
+        patientUhid={nurseHelpContext?.patientUhid}
+        defaultTaskType={nurseHelpContext?.defaultTaskType || 'Injection Administration'}
+        clinicalOrderDetails={nurseHelpContext?.clinicalOrderDetails}
+      />
     </div>
   );
 };

@@ -31,7 +31,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { ShieldAlert, ShieldCheck, HeartPulse } from 'lucide-react';
 
 const HospitalAppContent: React.FC = () => {
-  const { activeRole, currentUser, loginAsEmployee, isAuthLoading } = useAuth();
+  const { activeRole, currentUser, logout, isAuthLoading } = useAuth();
 
   const getDefaultTabForRole = (role: string): string => {
     switch (role) {
@@ -121,18 +121,12 @@ const HospitalAppContent: React.FC = () => {
               Welcome, <span className="font-bold text-slate-800">{currentUser.name}</span> ({currentUser.employeeCode}). Your employee registration submitted by HR is currently awaiting review and authorization by Hospital Administration. Application modules remain locked until an Administrator approves your profile.
             </p>
           </div>
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="pt-4 flex items-center justify-center">
             <button
-              onClick={() => loginAsEmployee('emp-admin-01')}
-              className="w-full sm:w-auto px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
+              onClick={() => logout()}
+              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
             >
-              <ShieldCheck className="w-4 h-4" /> Switch to Admin to Review
-            </button>
-            <button
-              onClick={() => loginAsEmployee('emp-hr-01')}
-              className="w-full sm:w-auto px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl transition-all"
-            >
-              Switch to HR Workspace
+              Sign Out & Return Later
             </button>
           </div>
         </div>

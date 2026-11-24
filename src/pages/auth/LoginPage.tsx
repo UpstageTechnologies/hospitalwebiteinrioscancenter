@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { loginWithEmail, registerHospitalOwner, signInQuickStaff, isAuthLoading } = useAuth();
-  const { success, error: toastError } = useToast();
+  const { loginWithEmail, registerHospitalOwner, resetPassword, isAuthLoading } = useAuth();
+  const { success, error: toastError, info } = useToast();
 
   const [activeTab, setActiveTab] = useState<'signin' | 'register'>('signin');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -29,6 +29,12 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Forgot Password State
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   // Register Hospital State
   const [regHospitalName, setRegHospitalName] = useState('');
@@ -52,9 +58,9 @@ export const LoginPage: React.FC = () => {
       success('Authentication Successful', 'Welcome to Upstage Hospital ERP.');
     } catch (err: any) {
       console.error('Sign In Error:', err);
-      let msg = 'Failed to sign in. Please verify your credentials.';
+      let msg = err.message || 'Failed to sign in. Please verify your credentials.';
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        msg = 'Invalid email or password. Use quick staff sign-in or check credentials.';
+        msg = 'Invalid email or password. Please verify your registered staff credentials.';
       } else if (err.code === 'auth/too-many-requests') {
         msg = 'Too many attempts. Please wait a moment before trying again.';
       }
@@ -62,6 +68,27 @@ export const LoginPage: React.FC = () => {
       toastError('Authentication Failed', msg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) {
+      setErrorMessage('Please enter your registered staff email address.');
+      return;
+    }
+
+    setIsResetting(true);
+    setErrorMessage(null);
+    try {
+      await resetPassword(resetEmail.trim());
+      setResetSuccess(true);
+      info('Password Reset Sent', 'Check your email inbox for password reset instructions.');
+    } catch (err: any) {
+      console.error('Password Reset Error:', err);
+      setErrorMessage(err.message || 'Failed to send password reset email. Please verify the email address.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -104,19 +131,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleQuickLogin = async (roleKey: string) => {
-    setErrorMessage(null);
-    setIsSubmitting(true);
-    try {
-      await signInQuickStaff(roleKey);
-      success('Staff Signed In', `Authenticated as ${roleKey.replace('_', ' ').toUpperCase()} via Firebase.`);
-    } catch (err: any) {
-      console.error('Quick Sign In Error:', err);
-      setErrorMessage(`Authentication error for ${roleKey}: ${err.message || 'Firebase Auth error'}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/20 to-teal-50/30 flex items-center justify-center p-4 select-none font-sans">
@@ -224,32 +239,57 @@ export const LoginPage: React.FC = () => {
                 )}
               </button>
 
-              {/* Quick Real Firebase Auth Sign In Shortcuts */}
-              <div className="pt-4 border-t border-slate-100 space-y-2.5">
-                <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
-                  <span>Quick Staff Sign In (Firebase Auth)</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { key: 'owner', label: 'Owner', color: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' },
-                    { key: 'admin', label: 'Admin', color: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' },
-                    { key: 'hr_manager', label: 'HR Manager', color: 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100' },
-                    { key: 'doctor', label: 'Doctor', color: 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100' },
-                    { key: 'receptionist', label: 'Receptionist', color: 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' },
-                    { key: 'billing_staff', label: 'Billing Staff', color: 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100' }
-                  ].map(btn => (
-                    <button
-                      key={btn.key}
-                      type="button"
-                      disabled={isSubmitting}
-                      onClick={() => handleQuickLogin(btn.key)}
-                      className={`p-2 rounded-xl border text-[11px] font-bold transition-all truncate text-center ${btn.color} disabled:opacity-50`}
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center justify-between text-xs pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotPassword(!showForgotPassword);
+                    setResetEmail(email);
+                    setResetSuccess(false);
+                    setErrorMessage(null);
+                  }}
+                  className="text-emerald-700 hover:text-emerald-800 font-semibold hover:underline"
+                >
+                  {showForgotPassword ? 'Back to sign in' : 'Forgot Password?'}
+                </button>
+                <span className="text-[11px] text-slate-400">Production Auth</span>
               </div>
+
+              {showForgotPassword && (
+                <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 space-y-2.5 animate-in fade-in duration-150">
+                  <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                    <span>Hospital Staff Password Recovery</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Enter your registered employee email to receive a secure Firebase password reset link.
+                  </p>
+                  {resetSuccess ? (
+                    <div className="p-2.5 bg-emerald-100/80 text-emerald-900 rounded-xl text-xs font-semibold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                      <span>Password reset link sent! Please check your email inbox.</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <input
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        placeholder="staff.email@hospital.org"
+                        className="w-full sm:flex-1 text-xs p-2.5 rounded-xl border border-slate-200 bg-white outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        disabled={isResetting}
+                        onClick={handleResetPassword}
+                        className="w-full sm:w-auto px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {isResetting ? 'Sending...' : 'Send Reset Link'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </form>
           )}
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
 import type { Invoice, PaymentMethod } from '../../types/billing';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   Receipt,
   Plus,
@@ -19,7 +20,8 @@ import {
   Stethoscope,
   Pill,
   Microscope,
-  Bed
+  Bed,
+  HeartPulse
 } from 'lucide-react';
 
 export const BillingDashboard: React.FC = () => {
@@ -28,6 +30,13 @@ export const BillingDashboard: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'partial' | 'paid'>('all');
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
+  const [nurseHelpContext, setNurseHelpContext] = useState<{
+    patientId?: string;
+    patientName?: string;
+    patientUhid?: string;
+    defaultTaskType?: string;
+  } | null>(null);
 
   // Selected Invoice for Payment
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
@@ -83,8 +92,22 @@ export const BillingDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Status Filters */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
+        {/* Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              setNurseHelpContext({ defaultTaskType: 'Patient Assistance' });
+              setNurseHelpOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Request nurse assistance at Billing Desk"
+          >
+            <HeartPulse className="w-4 h-4 text-rose-600" />
+            <span>Nurse Help</span>
+          </button>
+
+          {/* Status Filters */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
           {[
             { id: 'all', label: 'All Invoices' },
             { id: 'unpaid', label: 'Unpaid' },
@@ -103,6 +126,7 @@ export const BillingDashboard: React.FC = () => {
           ))}
         </div>
       </div>
+    </div>
 
       {/* Revenue & Financial Summary Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -477,6 +501,18 @@ export const BillingDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Reusable Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => {
+          setNurseHelpOpen(false);
+          setNurseHelpContext(null);
+        }}
+        patientId={nurseHelpContext?.patientId}
+        patientName={nurseHelpContext?.patientName}
+        patientUhid={nurseHelpContext?.patientUhid}
+        defaultTaskType={nurseHelpContext?.defaultTaskType || 'Patient Assistance'}
+      />
     </div>
   );
 };

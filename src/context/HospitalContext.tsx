@@ -2,24 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import {
   storageService,
-  DEFAULT_DEPARTMENTS,
-  DEFAULT_EMPLOYEES,
-  DEFAULT_ROLE_REQUESTS,
-  DEFAULT_PATIENTS,
-  DEFAULT_VITALS,
-  DEFAULT_APPOINTMENTS,
-  DEFAULT_WARDS,
-  DEFAULT_BEDS,
-  DEFAULT_ADMISSIONS,
-  DEFAULT_MEDICINES,
-  DEFAULT_LAB_ORDERS,
-  DEFAULT_RADIOLOGY_ORDERS,
-  DEFAULT_EXPENSES,
-  DEFAULT_INVOICES,
-  DEFAULT_NOTIFICATIONS,
-  DEFAULT_AUDIT_LOGS,
-  DEFAULT_ATTENDANCE,
-  DEFAULT_PAYROLL
+  DEFAULT_DEPARTMENTS
 } from '../services/storageService';
 import { firestoreService } from '../services/firestoreService';
 import {
@@ -28,10 +11,7 @@ import {
   disconnectKadaiPos,
   subscribeToPosMedicines,
   subscribeToPosLabTests,
-  subscribeToPosRooms,
-  DEFAULT_POS_MEDICINES,
-  DEFAULT_POS_LAB_TESTS,
-  DEFAULT_POS_ROOMS
+  subscribeToPosRooms
 } from '../services/posIntegrationService';
 import type {
   PosConnection,
@@ -50,6 +30,7 @@ import type { Medicine, PharmacyDispense } from '../types/pharmacy';
 import type { Invoice, HospitalExpense, BillItem, PaymentMethod } from '../types/billing';
 import type { HospitalNotification, AuditLog } from '../types/audit';
 import type { AttendanceRecord, PayrollRecord } from '../types/hr';
+import type { NurseTask, NurseAvailabilityStatus } from '../types/nurse';
 import { INITIAL_ROLE_TEMPLATES } from '../constants/roleTemplates';
 import { useToast } from './ToastContext';
 
@@ -75,6 +56,16 @@ interface HospitalContextType {
   auditLogs: AuditLog[];
   attendanceRecords: AttendanceRecord[];
   payrollRecords: PayrollRecord[];
+  nurseTasks: NurseTask[];
+
+  // Global Nurse Help & Task Assignment
+  requestNurseTask: (data: Omit<NurseTask, 'id' | 'hospitalId' | 'taskId' | 'status' | 'createdAt'>) => Promise<{ success: boolean; taskId: string; error?: string }>;
+  acceptNurseTask: (taskId: string, nurseStaffId: string) => Promise<{ success: boolean; error?: string }>;
+  startNurseTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  completeNurseTask: (taskId: string, nurseStaffId: string, completionNotes: string) => Promise<{ success: boolean; error?: string }>;
+  rejectNurseTask: (taskId: string, nurseStaffId: string, rejectionReason: string) => Promise<{ success: boolean; error?: string }>;
+  cancelNurseTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
+  setNurseAvailability: (nurseStaffId: string, status: 'available' | 'busy' | 'offline') => Promise<void>;
 
   // Kadai POS State & Integration
   posConnection: PosConnection | null;
@@ -239,70 +230,73 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const isDemo = hospId === 'hosp-001';
 
   const [departments, setDepartments] = useState<Department[]>(() =>
-    storageService.getCollection<Department>(hospId, 'departments', isDemo ? DEFAULT_DEPARTMENTS : [])
+    storageService.getCollection<Department>(hospId, 'departments', DEFAULT_DEPARTMENTS)
   );
   const [employees, setEmployees] = useState<Employee[]>(() =>
-    storageService.getCollection<Employee>(hospId, 'employees', isDemo ? DEFAULT_EMPLOYEES : [])
+    storageService.getCollection<Employee>(hospId, 'employees', [])
   );
   const [roleTemplates, setRoleTemplates] = useState<Record<RoleId, RoleTemplate>>(INITIAL_ROLE_TEMPLATES);
   const [roleRequests, setRoleRequests] = useState<RoleRequest[]>(() =>
-    storageService.getCollection<RoleRequest>(hospId, 'roleRequests', isDemo ? DEFAULT_ROLE_REQUESTS : [])
+    storageService.getCollection<RoleRequest>(hospId, 'roleRequests', [])
   );
   const [patients, setPatients] = useState<Patient[]>(() =>
-    storageService.getCollection<Patient>(hospId, 'patients', isDemo ? DEFAULT_PATIENTS : [])
+    storageService.getCollection<Patient>(hospId, 'patients', [])
   );
   const [vitals, setVitals] = useState<VitalSign[]>(() =>
-    storageService.getCollection<VitalSign>(hospId, 'vitals', isDemo ? DEFAULT_VITALS : [])
+    storageService.getCollection<VitalSign>(hospId, 'vitals', [])
   );
   const [appointments, setAppointments] = useState<Appointment[]>(() =>
-    storageService.getCollection<Appointment>(hospId, 'appointments', isDemo ? DEFAULT_APPOINTMENTS : [])
+    storageService.getCollection<Appointment>(hospId, 'appointments', [])
   );
   const [consultations, setConsultations] = useState<ConsultationRecord[]>(() =>
     storageService.getCollection<ConsultationRecord>(hospId, 'consultations', [])
   );
   const [wards, setWards] = useState<Ward[]>(() =>
-    storageService.getCollection<Ward>(hospId, 'wards', isDemo ? DEFAULT_WARDS : [])
+    storageService.getCollection<Ward>(hospId, 'wards', [])
   );
   const [beds, setBeds] = useState<Bed[]>(() =>
-    storageService.getCollection<Bed>(hospId, 'beds', isDemo ? DEFAULT_BEDS : [])
+    storageService.getCollection<Bed>(hospId, 'beds', [])
   );
   const [admissions, setAdmissions] = useState<Admission[]>(() =>
-    storageService.getCollection<Admission>(hospId, 'admissions', isDemo ? DEFAULT_ADMISSIONS : [])
+    storageService.getCollection<Admission>(hospId, 'admissions', [])
   );
   const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>(() =>
-    storageService.getCollection<Medicine>(hospId, 'medicines', isDemo ? DEFAULT_MEDICINES : [])
+    storageService.getCollection<Medicine>(hospId, 'medicines', [])
   );
   const [labOrders, setLabOrders] = useState<LabOrder[]>(() =>
-    storageService.getCollection<LabOrder>(hospId, 'labOrders', isDemo ? DEFAULT_LAB_ORDERS : [])
+    storageService.getCollection<LabOrder>(hospId, 'labOrders', [])
   );
   const [radiologyOrders, setRadiologyOrders] = useState<RadiologyOrder[]>(() =>
-    storageService.getCollection<RadiologyOrder>(hospId, 'radiologyOrders', isDemo ? DEFAULT_RADIOLOGY_ORDERS : [])
+    storageService.getCollection<RadiologyOrder>(hospId, 'radiologyOrders', [])
   );
   const [expenses, setExpenses] = useState<HospitalExpense[]>(() =>
-    storageService.getCollection<HospitalExpense>(hospId, 'expenses', isDemo ? DEFAULT_EXPENSES : [])
+    storageService.getCollection<HospitalExpense>(hospId, 'expenses', [])
   );
   const [invoices, setInvoices] = useState<Invoice[]>(() =>
-    storageService.getCollection<Invoice>(hospId, 'invoices', isDemo ? DEFAULT_INVOICES : [])
+    storageService.getCollection<Invoice>(hospId, 'invoices', [])
   );
   const [notifications, setNotifications] = useState<HospitalNotification[]>(() =>
-    storageService.getCollection<HospitalNotification>(hospId, 'notifications', isDemo ? DEFAULT_NOTIFICATIONS : [])
+    storageService.getCollection<HospitalNotification>(hospId, 'notifications', [])
   );
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() =>
-    storageService.getCollection<AuditLog>(hospId, 'auditLogs', isDemo ? DEFAULT_AUDIT_LOGS : [])
+    storageService.getCollection<AuditLog>(hospId, 'auditLogs', [])
   );
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() =>
-    storageService.getCollection<AttendanceRecord>(hospId, 'attendance', isDemo ? DEFAULT_ATTENDANCE : [])
+    storageService.getCollection<AttendanceRecord>(hospId, 'attendance', [])
   );
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>(() =>
-    storageService.getCollection<PayrollRecord>(hospId, 'payroll', isDemo ? DEFAULT_PAYROLL : [])
+    storageService.getCollection<PayrollRecord>(hospId, 'payroll', [])
+  );
+  const [nurseTasks, setNurseTasks] = useState<NurseTask[]>(() =>
+    storageService.getCollection<NurseTask>(hospId, 'nurseTasks', [])
   );
 
   // Kadai POS State
   const [posConnection, setPosConnection] = useState<PosConnection | null>(null);
-  const [posMedicines, setPosMedicines] = useState<PosMedicine[]>(DEFAULT_POS_MEDICINES);
-  const [posLabTests, setPosLabTests] = useState<PosLabTest[]>(DEFAULT_POS_LAB_TESTS);
-  const [posRooms, setPosRooms] = useState<PosRoom[]>(DEFAULT_POS_ROOMS);
+  const [posMedicines, setPosMedicines] = useState<PosMedicine[]>([]);
+  const [posLabTests, setPosLabTests] = useState<PosLabTest[]>([]);
+  const [posRooms, setPosRooms] = useState<PosRoom[]>([]);
 
   // Initialize Kadai POS Connection
   useEffect(() => {
@@ -340,145 +334,109 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Subscriptions for Hospital Collections
   useEffect(() => {
     storageService.initHospital(hospId);
-    const isDemoHospital = hospId === 'hosp-001';
 
     const unsubDepts = firestoreService.subscribeToCollection<Department>(hospId, 'departments', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setDepartments(data);
-        storageService.saveCollection(hospId, 'departments', data);
-      }
+      setDepartments(data || []);
+      storageService.saveCollection(hospId, 'departments', data || []);
     });
 
     const unsubEmps = firestoreService.subscribeToCollection<Employee>(hospId, 'employees', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setEmployees(data);
-        storageService.saveCollection(hospId, 'employees', data);
-      }
+      setEmployees(data || []);
+      storageService.saveCollection(hospId, 'employees', data || []);
     });
 
     const unsubReqs = firestoreService.subscribeToCollection<RoleRequest>(hospId, 'roleRequests', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setRoleRequests(data);
-        storageService.saveCollection(hospId, 'roleRequests', data);
-      }
+      setRoleRequests(data || []);
+      storageService.saveCollection(hospId, 'roleRequests', data || []);
     });
 
     const unsubPatients = firestoreService.subscribeToCollection<Patient>(hospId, 'patients', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setPatients(data);
-        storageService.saveCollection(hospId, 'patients', data);
-      }
+      setPatients(data || []);
+      storageService.saveCollection(hospId, 'patients', data || []);
     });
 
     const unsubVitals = firestoreService.subscribeToCollection<VitalSign>(hospId, 'vitals', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setVitals(data);
-        storageService.saveCollection(hospId, 'vitals', data);
-      }
+      setVitals(data || []);
+      storageService.saveCollection(hospId, 'vitals', data || []);
     });
 
     const unsubApts = firestoreService.subscribeToCollection<Appointment>(hospId, 'appointments', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setAppointments(data);
-        storageService.saveCollection(hospId, 'appointments', data);
-      }
+      setAppointments(data || []);
+      storageService.saveCollection(hospId, 'appointments', data || []);
     });
 
     const unsubCons = firestoreService.subscribeToCollection<ConsultationRecord>(hospId, 'consultations', (data) => {
-      if (data) {
-        setConsultations(data);
-        storageService.saveCollection(hospId, 'consultations', data);
-      }
+      setConsultations(data || []);
+      storageService.saveCollection(hospId, 'consultations', data || []);
     });
 
     const unsubWards = firestoreService.subscribeToCollection<Ward>(hospId, 'wards', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setWards(data);
-        storageService.saveCollection(hospId, 'wards', data);
-      }
+      setWards(data || []);
+      storageService.saveCollection(hospId, 'wards', data || []);
     });
 
     const unsubBeds = firestoreService.subscribeToCollection<Bed>(hospId, 'beds', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setBeds(data);
-        storageService.saveCollection(hospId, 'beds', data);
-      }
+      setBeds(data || []);
+      storageService.saveCollection(hospId, 'beds', data || []);
     });
 
     const unsubAdms = firestoreService.subscribeToCollection<Admission>(hospId, 'admissions', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setAdmissions(data);
-        storageService.saveCollection(hospId, 'admissions', data);
-      }
+      setAdmissions(data || []);
+      storageService.saveCollection(hospId, 'admissions', data || []);
     });
 
     const unsubAdmReqs = firestoreService.subscribeToCollection<AdmissionRequest>(hospId, 'admissionRequests', (data) => {
-      if (data) {
-        setAdmissionRequests(data);
-      }
+      setAdmissionRequests(data || []);
     });
 
     const unsubMeds = firestoreService.subscribeToCollection<Medicine>(hospId, 'medicines', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setMedicines(data);
-        storageService.saveCollection(hospId, 'medicines', data);
-      }
+      setMedicines(data || []);
+      storageService.saveCollection(hospId, 'medicines', data || []);
     });
 
     const unsubLabs = firestoreService.subscribeToCollection<LabOrder>(hospId, 'labOrders', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setLabOrders(data);
-        storageService.saveCollection(hospId, 'labOrders', data);
-      }
+      setLabOrders(data || []);
+      storageService.saveCollection(hospId, 'labOrders', data || []);
     });
 
     const unsubRads = firestoreService.subscribeToCollection<RadiologyOrder>(hospId, 'radiologyOrders', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setRadiologyOrders(data);
-        storageService.saveCollection(hospId, 'radiologyOrders', data);
-      }
+      setRadiologyOrders(data || []);
+      storageService.saveCollection(hospId, 'radiologyOrders', data || []);
     });
 
     const unsubExpenses = firestoreService.subscribeToCollection<HospitalExpense>(hospId, 'expenses', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setExpenses(data);
-        storageService.saveCollection(hospId, 'expenses', data);
-      }
+      setExpenses(data || []);
+      storageService.saveCollection(hospId, 'expenses', data || []);
     });
 
     const unsubBills = firestoreService.subscribeToCollection<Invoice>(hospId, 'bills', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setInvoices(data);
-        storageService.saveCollection(hospId, 'invoices', data);
-      }
+      setInvoices(data || []);
+      storageService.saveCollection(hospId, 'invoices', data || []);
     });
 
     const unsubNotifs = firestoreService.subscribeToCollection<HospitalNotification>(hospId, 'notifications', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setNotifications(data);
-        storageService.saveCollection(hospId, 'notifications', data);
-      }
+      setNotifications(data || []);
+      storageService.saveCollection(hospId, 'notifications', data || []);
     });
 
     const unsubLogs = firestoreService.subscribeToCollection<AuditLog>(hospId, 'auditLogs', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setAuditLogs(data);
-        storageService.saveCollection(hospId, 'auditLogs', data);
-      }
+      setAuditLogs(data || []);
+      storageService.saveCollection(hospId, 'auditLogs', data || []);
     });
 
     const unsubAtt = firestoreService.subscribeToCollection<AttendanceRecord>(hospId, 'attendance', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setAttendanceRecords(data);
-        storageService.saveCollection(hospId, 'attendance', data);
-      }
+      setAttendanceRecords(data || []);
+      storageService.saveCollection(hospId, 'attendance', data || []);
     });
 
     const unsubPay = firestoreService.subscribeToCollection<PayrollRecord>(hospId, 'payroll', (data) => {
-      if (data && (data.length > 0 || !isDemoHospital)) {
-        setPayrollRecords(data);
-        storageService.saveCollection(hospId, 'payroll', data);
-      }
+      setPayrollRecords(data || []);
+      storageService.saveCollection(hospId, 'payroll', data || []);
+    });
+
+    const unsubNurseTasks = firestoreService.subscribeToCollection<NurseTask>(hospId, 'nurseTasks', (data) => {
+      setNurseTasks(data || []);
+      storageService.saveCollection(hospId, 'nurseTasks', data || []);
     });
 
     return () => {
@@ -502,6 +460,7 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubLogs();
       unsubAtt();
       unsubPay();
+      unsubNurseTasks();
     };
   }, [hospId]);
 
@@ -1159,25 +1118,33 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       status: 'pending_approval'
     };
     setEmployees(prev => [newEmp, ...prev]);
+    firestoreService.setDocument(hospId, 'employees', newEmp.id, newEmp).catch(err => console.warn(err));
     return { success: true, message: 'Submitted for Admin review', employee: newEmp };
   };
 
   const approveEmployeeRequest = (employeeId: string, approvedRoles?: RoleId[]) => {
+    const updates = {
+      status: 'active' as const,
+      ...(approvedRoles ? { additionalRoles: approvedRoles } : {})
+    };
     setEmployees(prev => prev.map(e => e.id === employeeId ? {
       ...e,
-      status: 'active',
-      additionalRoles: approvedRoles || e.additionalRoles
+      ...updates
     } : e));
+    firestoreService.updateDocument(hospId, 'employees', employeeId, updates).catch(err => console.warn(err));
     success('Employee Approved', 'Profile activated.');
   };
 
   const rejectEmployeeRequest = (employeeId: string, reason: string) => {
-    setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, status: 'rejected' } : e));
+    const updates = { status: 'rejected' as const, rejectionReason: reason };
+    setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, ...updates } : e));
+    firestoreService.updateDocument(hospId, 'employees', employeeId, updates).catch(err => console.warn(err));
     info('Employee Rejected', reason);
   };
 
   const updateEmployee = (employeeId: string, updates: Partial<Employee>) => {
     setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, ...updates } : e));
+    firestoreService.updateDocument(hospId, 'employees', employeeId, updates).catch(err => console.warn(err));
   };
 
   const markAttendance = (employeeId: string, date: string, status: AttendanceRecord['status'], checkIn?: string, checkOut?: string) => {
@@ -1236,6 +1203,68 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     success('Payroll Status Updated', `Status changed to ${status}.`);
   };
 
+  // Nurse Help Handlers
+  const requestNurseTask = async (data: Omit<NurseTask, 'id' | 'hospitalId' | 'taskId' | 'status' | 'createdAt'>) => {
+    const res = await firestoreService.requestNurseTask(hospId, data);
+    if (res.success) {
+      success('Nurse Request Sent', `Task dispatched to ${data.nurseName}.`);
+    } else {
+      error('Request Failed', res.error || 'Could not send task to nurse.');
+    }
+    return res;
+  };
+
+  const acceptNurseTask = async (taskId: string, nurseStaffId: string) => {
+    const res = await firestoreService.acceptNurseTask(hospId, taskId, nurseStaffId);
+    if (res.success) {
+      success('Task Accepted', 'You are now marked as Busy on this assignment.');
+    } else {
+      error('Could Not Accept', res.error || 'Failed to accept task.');
+    }
+    return res;
+  };
+
+  const startNurseTask = async (taskId: string) => {
+    const res = await firestoreService.startNurseTask(hospId, taskId);
+    if (res.success) {
+      info('Task In Progress', 'Work commenced on assignment.');
+    }
+    return res;
+  };
+
+  const completeNurseTask = async (taskId: string, nurseStaffId: string, completionNotes: string) => {
+    const res = await firestoreService.completeNurseTask(hospId, taskId, nurseStaffId, completionNotes);
+    if (res.success) {
+      success('Task Completed', 'Assignment finalized. You are now Available for new tasks.');
+    } else {
+      error('Completion Error', res.error || 'Failed to complete task.');
+    }
+    return res;
+  };
+
+  const rejectNurseTask = async (taskId: string, nurseStaffId: string, rejectionReason: string) => {
+    const res = await firestoreService.rejectNurseTask(hospId, taskId, nurseStaffId, rejectionReason);
+    if (res.success) {
+      info('Task Declined', 'Requester has been notified.');
+    } else {
+      error('Error', res.error || 'Failed to decline task.');
+    }
+    return res;
+  };
+
+  const cancelNurseTask = async (taskId: string) => {
+    const res = await firestoreService.cancelNurseTask(hospId, taskId);
+    if (res.success) {
+      info('Task Cancelled', 'The task has been cancelled.');
+    }
+    return res;
+  };
+
+  const setNurseAvailability = async (nurseStaffId: string, status: 'available' | 'busy' | 'offline') => {
+    await firestoreService.setNurseAvailability(hospId, nurseStaffId, status);
+    success('Availability Updated', `Your status is now ${status.toUpperCase()}.`);
+  };
+
   return (
     <HospitalContext.Provider
       value={{
@@ -1260,6 +1289,14 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         auditLogs,
         attendanceRecords,
         payrollRecords,
+        nurseTasks,
+        requestNurseTask,
+        acceptNurseTask,
+        startNurseTask,
+        completeNurseTask,
+        rejectNurseTask,
+        cancelNurseTask,
+        setNurseAvailability,
         posConnection,
         posMedicines,
         posLabTests,

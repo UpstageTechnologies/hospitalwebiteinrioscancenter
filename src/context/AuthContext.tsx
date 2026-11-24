@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, query, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, getFirebaseAuth, getFirebaseDb } from '../services/firebase';
 import { authService, STANDARD_STAFF_ACCOUNTS } from '../services/authService';
 import { firestoreService } from '../services/firestoreService';
@@ -10,7 +10,6 @@ import type { Employee } from '../types/employee';
 import type { Hospital } from '../types/hospital';
 import type { UserProfileDoc, HospitalDocument } from '../types/auth';
 import { INITIAL_ROLE_TEMPLATES } from '../constants/roleTemplates';
-import { DEFAULT_HOSPITALS, DEFAULT_EMPLOYEES } from '../services/storageService';
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
@@ -26,6 +25,7 @@ interface AuthContextType {
   switchHospital: (hospitalId: string) => void;
   loginAsEmployee: (employeeId: string) => void;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   registerHospitalOwner: (params: {
     hospitalName: string;
     ownerName: string;
@@ -39,12 +39,38 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
+const DEFAULT_INITIAL_HOSPITAL: Hospital = {
+  id: 'hosp-001',
+  name: 'Upstage Multi-Speciality Hospital',
+  tagline: 'Advanced Clinical Care & Research Institute',
+  code: 'UPH-01',
+  address: '42 Healthway Boulevard, Medical Enclave',
+  city: 'New Delhi',
+  phone: '+91 11 4982 7000',
+  email: 'contact@upstagehospital.org',
+  ownerId: 'emp-owner-01',
+  ownerName: 'Hospital Administration',
+  createdAt: '2026-01-15T09:00:00Z',
+  activeModules: [
+    'opd', 'ipd', 'emergency', 'doctor_clinical', 'nursing', 'pharmacy',
+    'laboratory', 'radiology', 'billing', 'accounts', 'inventory', 'hr_payroll',
+    'ambulance', 'housekeeping', 'security', 'maintenance'
+  ],
+  settings: {
+    currency: '₹',
+    taxRate: 5.0,
+    opdConsultationValidityDays: 7,
+    emergencyContact: '+91 11 4982 7999',
+    operatingHours: '24 Hours Emergency & IPD / 08:00 - 20:00 OPD'
+  }
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileDoc | null>(null);
-  const [currentHospital, setCurrentHospital] = useState<Hospital>(DEFAULT_HOSPITALS[0]);
+  const [currentHospital, setCurrentHospital] = useState<Hospital>(DEFAULT_INITIAL_HOSPITAL);
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const [activeRole, setActiveRole] = useState<RoleId>('owner');
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
@@ -91,41 +117,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           if (!empData) {
-            if (hospId === 'hosp-001') {
-              empData = DEFAULT_EMPLOYEES.find(e => e.primaryRole === profile.role) || DEFAULT_EMPLOYEES[0];
-            } else {
-              // Real owner employee for original user
-              const ownerEmpId = profile.employeeId || `emp-${fbUser.uid.slice(0, 8)}`;
-              const ownerEmp: Employee = {
-                id: ownerEmpId,
-                hospitalId: hospId,
-                employeeCode: 'EMP-001',
-                name: profile.name || fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Hospital Owner'),
-                email: fbUser.email || '',
-                phone: '',
-                departmentId: 'dept-admin',
-                departmentName: 'Hospital Administration',
-                designation: profile.role === 'owner' ? 'Hospital Owner / CEO' : 'Staff Member',
-                primaryRole: profile.role || 'owner',
-                additionalRoles: [],
-                status: 'active',
-                joiningDate: new Date().toISOString().split('T')[0],
-                gender: 'Male',
-                employmentType: 'Full-time'
-              };
-              await setDoc(doc(getFirebaseDb(), 'hospitals', hospId, 'employees', ownerEmpId), ownerEmp, { merge: true });
-              empData = ownerEmp;
-            }
+            // Real employee record for this user
+            const ownerEmpId = profile.employeeId || `emp-${fbUser.uid.slice(0, 8)}`;
+            const ownerEmp: Employee = {
+              id: ownerEmpId,
+              hospitalId: hospId,
+              employeeCode: profile.role === 'owner' ? 'EMP-001' : `EMP-${fbUser.uid.slice(0, 4).toUpperCase()}`,
+              name: profile.name || fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Hospital Owner'),
+              email: fbUser.email || '',
+              phone: '',
+              departmentId: 'dept-admin',
+              departmentName: profile.role === 'owner' ? 'Hospital Administration' : 'General Department',
+              designation: profile.role === 'owner' ? 'Hospital Owner / CEO' : 'Staff Member',
+              primaryRole: profile.role || 'owner',
+              additionalRoles: [],
+              status: profile.status || 'active',
+              joiningDate: new Date().toISOString().split('T')[0],
+              gender: 'Male',
+              employmentType: 'Full-time'
+            };
+            await setDoc(doc(getFirebaseDb(), 'hospitals', hospId, 'employees', ownerEmpId), ownerEmp, { merge: true });
+            empData = ownerEmp;
+          }
+
+          if (profile.status === 'inactive' || empData.status === 'inactive') {
+            await authService.signOut();
+            setCurrentUser(null);
+            setUserProfile(null);
+            setFirebaseUser(null);
+            alert('Your hospital staff account has been deactivated. Please contact your Hospital Administrator.');
+            return;
           }
 
           setCurrentUser(empData);
           setActiveRole(profile.role || empData.primaryRole || 'owner');
         } catch (err) {
           console.warn('Error loading user profile from Firestore:', err);
-          if (profile?.hospitalId === 'hosp-001') {
-            setCurrentUser(DEFAULT_EMPLOYEES[0]);
-            setActiveRole('owner');
-          }
         }
       } else {
         setFirebaseUser(null);
@@ -199,17 +226,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (email: string) => {
+    await authService.resetPassword(email);
+  };
+
   const loginAsEmployee = async (employeeId: string) => {
-    const staffMatch = Object.entries(STANDARD_STAFF_ACCOUNTS).find(([_, s]) => s.empId === employeeId);
-    if (staffMatch) {
-      await signInQuickStaff(staffMatch[0]);
-    } else {
-      // Local session switch if employee not mapped to standard staff email
-      const emp = DEFAULT_EMPLOYEES.find(e => e.id === employeeId);
-      if (emp) {
+    try {
+      const empRef = doc(getFirebaseDb(), 'hospitals', currentHospital.id, 'employees', employeeId);
+      const snap = await getDoc(empRef);
+      if (snap.exists()) {
+        const emp = snap.data() as Employee;
         setCurrentUser(emp);
         setActiveRole(emp.primaryRole);
       }
+    } catch (e) {
+      console.warn('Could not switch to employee:', e);
     }
   };
 
@@ -259,6 +290,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchHospital,
         loginAsEmployee,
         loginWithEmail,
+        resetPassword,
         registerHospitalOwner,
         signInQuickStaff,
         refreshUser,

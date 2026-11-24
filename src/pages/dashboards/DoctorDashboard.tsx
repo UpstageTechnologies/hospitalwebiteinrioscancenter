@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import type { Patient } from '../../types/patient';
 import type { Appointment, PrescriptionItem } from '../../types/clinical';
 import type { PosMedicine, PosLabTest } from '../../services/posIntegrationService';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   Stethoscope,
   Clock,
@@ -24,7 +25,9 @@ import {
   Activity,
   Heart,
   FileText,
-  ShieldCheck
+  ShieldCheck,
+  HeartPulse,
+  Syringe
 } from 'lucide-react';
 
 export const DoctorDashboard: React.FC = () => {
@@ -46,6 +49,16 @@ export const DoctorDashboard: React.FC = () => {
   // Consultation Workspace Modal State
   const [activeConsultApt, setActiveConsultApt] = useState<Appointment | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Nurse Help Dialog State
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
+  const [nurseHelpContext, setNurseHelpContext] = useState<{
+    patientId?: string;
+    patientName?: string;
+    patientUhid?: string;
+    defaultTaskType?: string;
+    clinicalOrderDetails?: any;
+  } | null>(null);
 
   // Clinical Consultation Fields
   const [clinicalObs, setClinicalObs] = useState('');
@@ -267,25 +280,40 @@ export const DoctorDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Tab Filters */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold overflow-x-auto">
-          {[
-            { id: 'today', label: 'Today' },
-            { id: 'upcoming', label: 'Upcoming' },
-            { id: 'waiting', label: 'Waiting' },
-            { id: 'in_consultation', label: 'In Consultation' },
-            { id: 'completed', label: 'Completed' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setFilterTab(tab.id as any)}
-              className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                filterTab === tab.id ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Header Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setNurseHelpContext(null);
+              setNurseHelpOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Request on-duty nurse assistance"
+          >
+            <HeartPulse className="w-4 h-4 text-rose-600" />
+            <span>Nurse Help</span>
+          </button>
+
+          {/* Tab Filters */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold overflow-x-auto">
+            {[
+              { id: 'today', label: 'Today' },
+              { id: 'upcoming', label: 'Upcoming' },
+              { id: 'waiting', label: 'Waiting' },
+              { id: 'in_consultation', label: 'In Consultation' },
+              { id: 'completed', label: 'Completed' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setFilterTab(tab.id as any)}
+                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
+                  filterTab === tab.id ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -421,12 +449,31 @@ export const DoctorDashboard: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setActiveConsultApt(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNurseHelpContext({
+                      patientId: activeConsultApt.patientId,
+                      patientName: activeConsultApt.patientName,
+                      patientUhid: activeConsultApt.patientUhid,
+                      defaultTaskType: 'Doctor Assistance'
+                    });
+                    setNurseHelpOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all"
+                  title="Dispatch nurse for this patient"
+                >
+                  <HeartPulse className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Call Nurse</span>
+                </button>
+                <button
+                  onClick={() => setActiveConsultApt(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Section 1: Observations & Diagnosis */}
@@ -754,6 +801,19 @@ export const DoctorDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Nurse Help Reusable Dispatch Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => {
+          setNurseHelpOpen(false);
+          setNurseHelpContext(null);
+        }}
+        patientId={nurseHelpContext?.patientId}
+        patientName={nurseHelpContext?.patientName}
+        patientUhid={nurseHelpContext?.patientUhid}
+        defaultTaskType={nurseHelpContext?.defaultTaskType}
+        clinicalOrderDetails={nurseHelpContext?.clinicalOrderDetails}
+      />
     </div>
   );
 };

@@ -193,8 +193,13 @@ service cloud.firestore {
         allow write: if belongsToHospital(hospitalId);
       }
 
-      // 12. PHARMACY MEDICINES & DISPENSES:
+      // 12. PHARMACY MEDICINES, PRESCRIPTIONS & DISPENSES:
       match /medicines/{medicineId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
+      }
+
+      match /prescriptions/{prescriptionId} {
         allow read: if belongsToHospital(hospitalId);
         allow write: if belongsToHospital(hospitalId);
       }
@@ -224,6 +229,18 @@ service cloud.firestore {
         allow read: if isAdmin(hospitalId);
         allow create: if isAuthenticated();
         allow update, delete: if false; // Immutable append-only audit trail
+      }
+
+      // 15. HOSPITAL SETTINGS (including POS integration):
+      match /settings/{settingId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if isOwner(hospitalId) || isAdmin(hospitalId);
+      }
+
+      // 16. GLOBAL NURSE HELP & TASK ASSIGNMENT:
+      match /nurseTasks/{taskId} {
+        allow read: if belongsToHospital(hospitalId);
+        allow write: if belongsToHospital(hospitalId);
       }
     }
   }

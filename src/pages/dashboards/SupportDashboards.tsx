@@ -19,30 +19,16 @@ export const SupportDashboards: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ambulance' | 'housekeeping' | 'security' | 'maintenance'>('ambulance');
 
   // Ambulance trips state
-  const [trips, setTrips] = useState([
-    { id: '1', tripNo: 'AMB-108-01', vehicle: 'DL-01-AX-9912', patient: 'Ramesh Verma', pickup: 'Sector 62, Noida', destination: 'Upstage Emergency ICU', status: 'en_route_pickup' },
-    { id: '2', tripNo: 'AMB-108-02', vehicle: 'DL-01-AX-9914', patient: 'Mrs. Shanti Devi', pickup: 'Lajpat Nagar, New Delhi', destination: 'Upstage Hospital Trauma', status: 'completed' }
-  ]);
+  const [trips, setTrips] = useState<any[]>([]);
 
   // Housekeeping tasks state
-  const [tasks, setTasks] = useState([
-    { id: '1', room: 'General Ward Male - Bed GW-03', task: 'Terminal Bed Sanitization & Linen Change', priority: 'high', status: 'pending' },
-    { id: '2', room: 'ICU Unit - Bed ICU-02', task: 'Formalin Disinfection Cycle', priority: 'urgent', status: 'completed' },
-    { id: '3', room: 'OPD 2nd Floor Corridor', task: 'Routine Floor Mopping & Dustbin Clearance', priority: 'normal', status: 'completed' }
-  ]);
+  const [tasks, setTasks] = useState<any[]>([]);
 
   // Security gate passes state
-  const [visitorPasses, setVisitorPasses] = useState([
-    { id: '1', passNo: 'VIS-2026-0041', visitor: 'Sunita Sen', patient: 'Amitabh Sen (UPH-2026-00101)', ward: 'General Ward Male - Bed GW-01', entryTime: '10:30 AM', status: 'inside' },
-    { id: '2', passNo: 'VIS-2026-0042', visitor: 'Rohit Chopra', patient: 'Priyanka Chopra (UPH-2026-00102)', ward: 'Cardiology OPD Room 3', entryTime: '09:15 AM', status: 'checked_out' }
-  ]);
+  const [visitorPasses, setVisitorPasses] = useState<any[]>([]);
 
   // Maintenance tickets state
-  const [tickets, setTickets] = useState([
-    { id: '1', ticketNo: 'MNT-2026-012', equipment: 'ICU Ventilator #2 Oxygen Pipeline Pressure', department: 'ICU Unit', priority: 'urgent', status: 'in_repair' },
-    { id: '2', ticketNo: 'MNT-2026-013', equipment: 'Radiology Digital X-Ray Console UPS Backup', department: 'Radiology', priority: 'high', status: 'open' },
-    { id: '3', ticketNo: 'MNT-2026-014', equipment: '4th Floor AC Chiller Air Flow Balance', department: 'Deluxe Private', priority: 'normal', status: 'resolved' }
-  ]);
+  const [tickets, setTickets] = useState<any[]>([]);
 
   return (
     <div className="space-y-6">
@@ -109,43 +95,51 @@ export const SupportDashboards: React.FC = () => {
             </span>
           </div>
 
-          <div className="space-y-3">
-            {trips.map((trip) => (
-              <div key={trip.id} className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900">{trip.tripNo}</span>
-                    <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      Vehicle: {trip.vehicle}
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                      trip.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'
-                    }`}>
-                      {trip.status.replace(/_/g, ' ')}
-                    </span>
+          {trips.length === 0 ? (
+            <div className="py-10 text-center space-y-2">
+              <Truck className="w-8 h-8 text-slate-300 mx-auto" />
+              <div className="text-xs font-bold text-slate-700">No Active Ambulance Dispatches</div>
+              <p className="text-[11px] text-slate-400">All emergency transit vehicles are stationed on standby.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {trips.map((trip) => (
+                <div key={trip.id} className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">{trip.tripNo}</span>
+                      <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                        Vehicle: {trip.vehicle}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        trip.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'
+                      }`}>
+                        {trip.status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-700 font-semibold">
+                      Patient: {trip.patient}
+                    </div>
+                    <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                      Pickup: {trip.pickup} ➔ Destination: {trip.destination}
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-700 font-semibold">
-                    Patient: {trip.patient}
-                  </div>
-                  <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    Pickup: {trip.pickup} ➔ Destination: {trip.destination}
-                  </div>
-                </div>
 
-                {trip.status !== 'completed' && (
-                  <button
-                    onClick={() => {
-                      setTrips(trips.map(t => t.id === trip.id ? { ...t, status: 'completed' } : t));
-                    }}
-                    className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg shadow-xs"
-                  >
-                    Mark Trip Completed
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+                  {trip.status !== 'completed' && (
+                    <button
+                      onClick={() => {
+                        setTrips(trips.map(t => t.id === trip.id ? { ...t, status: 'completed' } : t));
+                      }}
+                      className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg shadow-xs"
+                    >
+                      Mark Trip Completed
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -164,39 +158,47 @@ export const SupportDashboards: React.FC = () => {
             </span>
           </div>
 
-          <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
-            {tasks.map((task) => {
-              const isDone = task.status === 'completed';
-              return (
-                <div key={task.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => {
-                        setTasks(tasks.map(t => t.id === task.id ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t));
-                      }}
-                      className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                        isDone ? 'bg-emerald-600 text-white' : 'border border-slate-300 hover:border-emerald-500'
-                      }`}
-                    >
-                      {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                    </button>
-                    <div>
-                      <div className={`text-xs font-bold ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                        {task.room}
+          {tasks.length === 0 ? (
+            <div className="py-10 text-center space-y-2">
+              <Check className="w-8 h-8 text-emerald-500 mx-auto" />
+              <div className="text-xs font-bold text-slate-700">All Sanitation Protocols Up to Date</div>
+              <p className="text-[11px] text-slate-400">No pending ward terminal cleanings or disinfection cycles.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+              {tasks.map((task) => {
+                const isDone = task.status === 'completed';
+                return (
+                  <div key={task.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setTasks(tasks.map(t => t.id === task.id ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t));
+                        }}
+                        className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                          isDone ? 'bg-emerald-600 text-white' : 'border border-slate-300 hover:border-emerald-500'
+                        }`}
+                      >
+                        {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </button>
+                      <div>
+                        <div className={`text-xs font-bold ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                          {task.room}
+                        </div>
+                        <div className="text-[11px] text-slate-500">{task.task}</div>
                       </div>
-                      <div className="text-[11px] text-slate-500">{task.task}</div>
                     </div>
-                  </div>
 
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                    isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                  }`}>
-                    {task.priority} Priority
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                      isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {task.priority} Priority
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -215,30 +217,38 @@ export const SupportDashboards: React.FC = () => {
             </button>
           </div>
 
-          <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
-            {visitorPasses.map((pass) => (
-              <div key={pass.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900">{pass.passNo}</span>
-                    <span className="text-xs font-semibold text-slate-700">• {pass.visitor}</span>
+          {visitorPasses.length === 0 ? (
+            <div className="py-10 text-center space-y-2">
+              <Shield className="w-8 h-8 text-slate-300 mx-auto" />
+              <div className="text-xs font-bold text-slate-700">No Active Visitor Passes Issued</div>
+              <p className="text-[11px] text-slate-400">Gate register is clear with 0 visitors currently inside the facility.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+              {visitorPasses.map((pass) => (
+                <div key={pass.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">{pass.passNo}</span>
+                      <span className="text-xs font-semibold text-slate-700">• {pass.visitor}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Attending: {pass.patient} • Location: {pass.ward}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    Attending: {pass.patient} • Location: {pass.ward}
-                  </div>
-                </div>
 
-                <div className="text-right">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                    pass.status === 'inside' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {pass.status.replace('_', ' ')}
-                  </span>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Entry: {pass.entryTime}</div>
+                  <div className="text-right">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                      pass.status === 'inside' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {pass.status.replace('_', ' ')}
+                    </span>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Entry: {pass.entryTime}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -257,32 +267,40 @@ export const SupportDashboards: React.FC = () => {
             </button>
           </div>
 
-          <div className="space-y-3">
-            {tickets.map((t) => (
-              <div key={t.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900">{t.ticketNo}</span>
-                    <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      {t.department}
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                      t.priority === 'urgent' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {t.priority}
-                    </span>
+          {tickets.length === 0 ? (
+            <div className="py-10 text-center space-y-2">
+              <Wrench className="w-8 h-8 text-slate-300 mx-auto" />
+              <div className="text-xs font-bold text-slate-700">No Open Work Orders</div>
+              <p className="text-[11px] text-slate-400">All medical gas, power backup and HVAC equipment are functioning normally.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {tickets.map((t) => (
+                <div key={t.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">{t.ticketNo}</span>
+                      <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                        {t.department}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        t.priority === 'urgent' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {t.priority}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-800 font-semibold mt-1">{t.equipment}</div>
                   </div>
-                  <div className="text-xs text-slate-800 font-semibold mt-1">{t.equipment}</div>
-                </div>
 
-                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${
-                  t.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {t.status.replace('_', ' ')}
-                </span>
-              </div>
-            ))}
-          </div>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize ${
+                    t.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {t.status.replace('_', ' ')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

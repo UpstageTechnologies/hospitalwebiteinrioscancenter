@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import type { Bed, AdmissionRequest } from '../../types/admission';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   Bed as BedIcon,
   CheckCircle2,
@@ -16,7 +17,8 @@ import {
   Building2,
   Calendar,
   LogOut,
-  CreditCard
+  CreditCard,
+  HeartPulse
 } from 'lucide-react';
 
 export const WardDashboard: React.FC = () => {
@@ -40,6 +42,15 @@ export const WardDashboard: React.FC = () => {
 
   // Discharge Modal State
   const [dischargingAdmId, setDischargingAdmId] = useState<string | null>(null);
+
+  // Nurse Help Dialog State
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
+  const [nurseHelpContext, setNurseHelpContext] = useState<{
+    patientId?: string;
+    patientName?: string;
+    patientUhid?: string;
+    defaultTaskType?: string;
+  } | null>(null);
 
   const pendingRequests = admissionRequests.filter(r => r.status === 'pending');
   const activeAdmissions = admissions.filter(a => a.status === 'active');
@@ -96,8 +107,22 @@ export const WardDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
+        {/* Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              setNurseHelpContext({ defaultTaskType: 'Ward Assistance' });
+              setNurseHelpOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Request nurse assistance for ward duties or inpatient care"
+          >
+            <HeartPulse className="w-4 h-4 text-rose-600" />
+            <span>Nurse Help</span>
+          </button>
+
+          {/* Tab Switcher */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
           <button
             onClick={() => setActiveTab('requests')}
             className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
@@ -136,6 +161,7 @@ export const WardDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+    </div>
 
       {/* Bed Census Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -493,6 +519,18 @@ export const WardDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Reusable Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => {
+          setNurseHelpOpen(false);
+          setNurseHelpContext(null);
+        }}
+        patientId={nurseHelpContext?.patientId}
+        patientName={nurseHelpContext?.patientName}
+        patientUhid={nurseHelpContext?.patientUhid}
+        defaultTaskType={nurseHelpContext?.defaultTaskType || 'Ward Assistance'}
+      />
     </div>
   );
 };

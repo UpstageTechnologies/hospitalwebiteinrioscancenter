@@ -1,6 +1,7 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
@@ -17,7 +18,7 @@ import type { UserProfileDoc, HospitalDocument } from '../types/auth';
 import type { RoleId } from '../types/roles';
 import type { Employee } from '../types/employee';
 import type { Hospital } from '../types/hospital';
-import { DEFAULT_HOSPITALS, DEFAULT_EMPLOYEES } from './storageService';
+import { DEFAULT_DEPARTMENTS } from './storageService';
 
 export const STANDARD_STAFF_ACCOUNTS: Record<string, { email: string; name: string; role: RoleId; empId: string; dept: string; designation: string }> = {
   owner: {
@@ -99,7 +100,19 @@ export class AuthService {
   public async signIn(email: string, pass: string): Promise<{ user: FirebaseUser; profile: UserProfileDoc }> {
     const cred = await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), pass);
     const profile = await this.getOrCreateUserProfile(cred.user);
+    if (profile.status === 'inactive') {
+      await signOut(getFirebaseAuth());
+      throw new Error('This account has been deactivated. Please contact your Hospital Administrator.');
+    }
     return { user: cred.user, profile };
+  }
+
+  // Password Recovery via Firebase Auth
+  public async resetPassword(email: string): Promise<void> {
+    if (!email || !email.trim()) {
+      throw new Error('Please enter a valid email address.');
+    }
+    await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
   }
 
   // 2. Register New Hospital Owner & Initialize Hospital Architecture
@@ -296,7 +309,27 @@ export class AuthService {
     } catch (e) {
       console.warn('Could not fetch hospital from Firestore:', e);
     }
-    return DEFAULT_HOSPITALS[0];
+    return {
+      id: hospitalId,
+      name: 'Upstage Multi-Speciality Hospital',
+      code: 'UPH-01',
+      city: 'New Delhi',
+      phone: '+91 11 4050 9900',
+      email: 'contact@upstagehospital.org',
+      tagline: 'Advanced Clinical Care & Research Institute',
+      address: 'Medical Enclave, New Delhi',
+      ownerId: 'emp-owner-01',
+      ownerName: 'Hospital Administration',
+      createdAt: new Date().toISOString(),
+      activeModules: ['opd', 'ipd', 'pharmacy', 'laboratory', 'radiology', 'billing'],
+      settings: {
+        currency: '₹',
+        taxRate: 5.0,
+        opdConsultationValidityDays: 7,
+        emergencyContact: '+91 11 4050 9999',
+        operatingHours: '24/7 Tertiary Care'
+      }
+    };
   }
 
   // 6. Sign Out

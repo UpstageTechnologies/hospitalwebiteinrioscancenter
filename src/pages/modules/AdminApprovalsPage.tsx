@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import type { Employee } from '../../types/employee';
 import type { RoleId } from '../../types/roles';
 import type { RoleRequest } from '../../types/roleRequest';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -26,7 +27,8 @@ import {
   ShieldCheck,
   PlusCircle,
   MinusCircle,
-  RotateCcw
+  RotateCcw,
+  HeartPulse
 } from 'lucide-react';
 
 export const AdminApprovalsPage: React.FC = () => {
@@ -56,6 +58,9 @@ export const AdminApprovalsPage: React.FC = () => {
   // Reject Role Request Modal State
   const [rejectModalRoleRequest, setRejectModalRoleRequest] = useState<RoleRequest | null>(null);
   const [roleRequestRejectionReason, setRoleRequestRejectionReason] = useState('');
+
+  // Nurse Help Dialog State
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
 
   const pendingEmployees = employees.filter(e => e.status === 'pending_approval');
   const pendingRoleRequests = roleRequests.filter(r => r.status === 'pending');
@@ -152,9 +157,17 @@ export const AdminApprovalsPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setNurseHelpOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+              title="Request nurse assistance"
+            >
+              <HeartPulse className="w-3.5 h-3.5 text-rose-600" />
+              <span>Nurse Help</span>
+            </button>
             <span className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Authorized Admin: <strong className="text-slate-900">{currentUser?.name || 'Pooja Deshmukh'}</strong>
+              Authorized Admin: <strong className="text-slate-900">{currentUser?.name || 'Administrator'}</strong>
             </span>
           </div>
         </div>
@@ -941,6 +954,12 @@ export const AdminApprovalsPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Reusable Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => setNurseHelpOpen(false)}
+        defaultTaskType="Patient Assistance"
+      />
     </div>
   );
 };

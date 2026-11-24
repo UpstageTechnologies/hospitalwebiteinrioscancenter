@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
 import type { LabOrder } from '../../types/clinical';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   Microscope,
   CheckCircle2,
@@ -14,7 +15,8 @@ import {
   XCircle,
   Check,
   ChevronRight,
-  User
+  User,
+  HeartPulse
 } from 'lucide-react';
 
 export const LabDashboard: React.FC = () => {
@@ -28,6 +30,15 @@ export const LabDashboard: React.FC = () => {
   const [remarks, setRemarks] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Nurse Help Dialog State
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
+  const [nurseHelpContext, setNurseHelpContext] = useState<{
+    patientId?: string;
+    patientName?: string;
+    patientUhid?: string;
+    defaultTaskType?: string;
+  } | null>(null);
 
   const handleOpenResultModal = (order: LabOrder) => {
     setSelectedOrder(order);
@@ -100,8 +111,22 @@ export const LabDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Status Filters */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold overflow-x-auto">
+        {/* Header Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setNurseHelpContext({ defaultTaskType: 'Laboratory Assistance' });
+              setNurseHelpOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Request nurse assistance for specimen collection or patient handling"
+          >
+            <HeartPulse className="w-4 h-4 text-rose-600" />
+            <span>Nurse Help</span>
+          </button>
+
+          {/* Status Filters */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold overflow-x-auto">
           {[
             { id: 'all', label: 'All Tests' },
             { id: 'pending', label: 'Pending' },
@@ -122,6 +147,7 @@ export const LabDashboard: React.FC = () => {
           ))}
         </div>
       </div>
+    </div>
 
       {/* Search Bar */}
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
@@ -370,6 +396,18 @@ export const LabDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => {
+          setNurseHelpOpen(false);
+          setNurseHelpContext(null);
+        }}
+        patientId={nurseHelpContext?.patientId}
+        patientName={nurseHelpContext?.patientName}
+        patientUhid={nurseHelpContext?.patientUhid}
+        defaultTaskType={nurseHelpContext?.defaultTaskType || 'Laboratory Assistance'}
+      />
     </div>
   );
 };

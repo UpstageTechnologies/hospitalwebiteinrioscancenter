@@ -3,6 +3,7 @@ import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
 import type { Patient } from '../../types/patient';
 import type { Appointment } from '../../types/clinical';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   Calendar,
   Clock,
@@ -21,7 +22,8 @@ import {
   CreditCard,
   Globe,
   Tag,
-  Check
+  Check,
+  HeartPulse
 } from 'lucide-react';
 
 export const ReceptionistDashboard: React.FC = () => {
@@ -52,6 +54,15 @@ export const ReceptionistDashboard: React.FC = () => {
 
   // Edit / Reschedule Modal State
   const [editingApt, setEditingApt] = useState<Appointment | null>(null);
+
+  // Nurse Help Dialog State
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
+  const [nurseHelpContext, setNurseHelpContext] = useState<{
+    patientId?: string;
+    patientName?: string;
+    patientUhid?: string;
+    defaultTaskType?: string;
+  } | null>(null);
   const [editComplaint, setEditComplaint] = useState('');
   const [editDocId, setEditDocId] = useState('');
   const [editSlot, setEditSlot] = useState('');
@@ -149,8 +160,22 @@ export const ReceptionistDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Quick Nav Subtabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
+        {/* Top Action & Quick Nav Subtabs */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              setNurseHelpContext(null);
+              setNurseHelpOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Request nurse assistance at Front Desk"
+          >
+            <HeartPulse className="w-4 h-4 text-rose-600" />
+            <span>Nurse Help</span>
+          </button>
+
+          {/* Quick Nav Subtabs */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200 text-xs font-semibold">
           <button
             onClick={() => setActiveSubTab('walk_in')}
             className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
@@ -194,6 +219,7 @@ export const ReceptionistDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+    </div>
 
       {/* TAB 1: WALK-IN TOKEN DESK */}
       {activeSubTab === 'walk_in' && (
@@ -701,6 +727,18 @@ export const ReceptionistDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Reusable Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => {
+          setNurseHelpOpen(false);
+          setNurseHelpContext(null);
+        }}
+        patientId={nurseHelpContext?.patientId}
+        patientName={nurseHelpContext?.patientName}
+        patientUhid={nurseHelpContext?.patientUhid}
+        defaultTaskType={nurseHelpContext?.defaultTaskType || 'Patient Assistance'}
+      />
     </div>
   );
 };

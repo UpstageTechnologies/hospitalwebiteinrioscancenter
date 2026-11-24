@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   writeBatch,
+  runTransaction,
   serverTimestamp
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
@@ -27,25 +28,10 @@ import type { AttendanceRecord, PayrollRecord } from '../types/hr';
 import type { HospitalNotification, AuditLog } from '../types/audit';
 import type { Department } from '../types/hospital';
 import type { RoleId } from '../types/roles';
+import type { NurseTask, NurseAvailabilityStatus } from '../types/nurse';
 import { dispenseMedicineAtomic } from './posIntegrationService';
 import {
-  DEFAULT_DEPARTMENTS,
-  DEFAULT_EMPLOYEES,
-  DEFAULT_PATIENTS,
-  DEFAULT_VITALS,
-  DEFAULT_APPOINTMENTS,
-  DEFAULT_WARDS,
-  DEFAULT_BEDS,
-  DEFAULT_MEDICINES,
-  DEFAULT_LAB_ORDERS,
-  DEFAULT_RADIOLOGY_ORDERS,
-  DEFAULT_EXPENSES,
-  DEFAULT_INVOICES,
-  DEFAULT_NOTIFICATIONS,
-  DEFAULT_AUDIT_LOGS,
-  DEFAULT_ATTENDANCE,
-  DEFAULT_PAYROLL,
-  DEFAULT_ROLE_REQUESTS
+  DEFAULT_DEPARTMENTS
 } from './storageService';
 
 // Helper to recursively remove all keys with undefined values to prevent Firestore updateDoc/setDoc exceptions
@@ -145,7 +131,7 @@ export class FirestoreHospitalService {
     await deleteDoc(docRef);
   }
 
-  // Check and seed initial hospital data in Firestore if empty
+  // Check and initialize clean hospital configuration in Firestore
   public async initializeHospitalInFirestore(
     hospitalId: string,
     hospitalName: string,
@@ -159,7 +145,7 @@ export class FirestoreHospitalService {
           hospitalId,
           hospitalName,
           ownerUid,
-          code: 'UPH-01',
+          code: `UPH-${String(Math.floor(Math.random() * 90 + 10))}`,
           city: 'New Delhi',
           phone: '+91 11 4050 9900',
           email: 'admin@upstagehospital.org',
@@ -168,108 +154,19 @@ export class FirestoreHospitalService {
         });
       }
 
-      if (hospitalId !== 'hosp-001') {
-        return;
+      // Initialize standard department configuration if empty
+      const deptCol = this.getColRef(hospitalId, 'departments');
+      const deptSnap = await getDocs(query(deptCol, limit(1)));
+      if (deptSnap.empty) {
+        const batch = writeBatch(getFirebaseDb());
+        DEFAULT_DEPARTMENTS.forEach(dept => {
+          const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'departments', dept.id);
+          batch.set(ref, { ...dept, hospitalId });
+        });
+        await batch.commit();
       }
-
-      const empCol = this.getColRef(hospitalId, 'employees');
-      const empSnap = await getDocs(query(empCol, limit(1)));
-      if (!empSnap.empty) {
-        return;
-      }
-
-      console.log(`Seeding initial demo data for hospital ${hospitalId}...`);
-      const batch = writeBatch(getFirebaseDb());
-
-      DEFAULT_DEPARTMENTS.forEach(dept => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'departments', dept.id);
-        batch.set(ref, { ...dept, hospitalId });
-      });
-
-      DEFAULT_EMPLOYEES.forEach(emp => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'employees', emp.id);
-        batch.set(ref, { ...emp, hospitalId });
-      });
-
-      DEFAULT_ROLE_REQUESTS.forEach(req => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'roleRequests', req.id);
-        batch.set(ref, { ...req, hospitalId });
-      });
-
-      DEFAULT_PATIENTS.forEach(pat => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'patients', pat.id);
-        batch.set(ref, { ...pat, hospitalId });
-      });
-
-      DEFAULT_VITALS.forEach(v => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'vitals', v.id);
-        batch.set(ref, { ...v, hospitalId });
-      });
-
-      DEFAULT_APPOINTMENTS.forEach(apt => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'appointments', apt.id);
-        batch.set(ref, { ...apt, hospitalId });
-      });
-
-      DEFAULT_WARDS.forEach(w => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'wards', w.id);
-        batch.set(ref, { ...w, hospitalId });
-      });
-
-      DEFAULT_BEDS.forEach(b => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'beds', b.id);
-        batch.set(ref, { ...b, hospitalId });
-      });
-
-      DEFAULT_MEDICINES.forEach(m => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'medicines', m.id);
-        batch.set(ref, { ...m, hospitalId });
-      });
-
-      DEFAULT_LAB_ORDERS.forEach(l => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'labOrders', l.id);
-        batch.set(ref, { ...l, hospitalId });
-      });
-
-      DEFAULT_RADIOLOGY_ORDERS.forEach(r => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'radiologyOrders', r.id);
-        batch.set(ref, { ...r, hospitalId });
-      });
-
-      DEFAULT_EXPENSES.forEach(exp => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'expenses', exp.id);
-        batch.set(ref, { ...exp, hospitalId });
-      });
-
-      DEFAULT_INVOICES.forEach(inv => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'bills', inv.id);
-        batch.set(ref, { ...inv, hospitalId });
-      });
-
-      DEFAULT_ATTENDANCE.forEach(att => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'attendance', att.id);
-        batch.set(ref, { ...att, hospitalId });
-      });
-
-      DEFAULT_PAYROLL.forEach(pay => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'payroll', pay.id);
-        batch.set(ref, { ...pay, hospitalId });
-      });
-
-      DEFAULT_NOTIFICATIONS.forEach(notif => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'notifications', notif.id);
-        batch.set(ref, { ...notif, hospitalId });
-      });
-
-      DEFAULT_AUDIT_LOGS.forEach(log => {
-        const ref = doc(getFirebaseDb(), 'hospitals', hospitalId, 'auditLogs', log.id);
-        batch.set(ref, { ...log, hospitalId });
-      });
-
-      await batch.commit();
-      console.log(`Hospital ${hospitalId} successfully seeded in Cloud Firestore.`);
     } catch (error) {
-      console.warn('Firestore initialization error (proceeding with optimistic local fallback):', error);
+      console.warn('Firestore hospital initialization warning:', error);
     }
   }
 
@@ -1275,6 +1172,293 @@ export class FirestoreHospitalService {
     });
 
     await batch.commit();
+  }
+
+  // ============================================================================
+  // NURSE HELP & GLOBAL TASK ASSIGNMENT WORKFLOW
+  // ============================================================================
+
+  // 1. Create a new nurse assistance request
+  public async requestNurseTask(
+    hospitalId: string,
+    data: Omit<NurseTask, 'id' | 'hospitalId' | 'taskId' | 'status' | 'createdAt'>
+  ): Promise<{ success: boolean; taskId: string; error?: string }> {
+    try {
+      const taskId = `ntask-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      
+      const newTask: NurseTask = {
+        ...data,
+        id: taskId,
+        taskId,
+        hospitalId,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      await this.setDocument(hospitalId, 'nurseTasks', taskId, newTask);
+
+      // Create in-app notification for the assigned nurse
+      const notifId = `notif-${Date.now()}`;
+      await this.setDocument(hospitalId, 'notifications', notifId, {
+        id: notifId,
+        hospitalId,
+        targetEmployeeId: data.nurseStaffId,
+        title: `Nurse Help Request: ${data.taskType}`,
+        message: `${data.requestedByName} (${data.requestedByRole}) requested ${data.priority === 'urgent' ? 'URGENT ' : ''}assistance: ${data.description.slice(0, 100)}`,
+        type: data.priority === 'urgent' ? 'urgent' : 'task_assignment',
+        isRead: false,
+        createdAt: new Date().toISOString()
+      }).catch(err => console.warn('Could not post nurse task notification:', err));
+
+      return { success: true, taskId };
+    } catch (err: any) {
+      console.error('requestNurseTask failed:', err);
+      return { success: false, taskId: '', error: err.message };
+    }
+  }
+
+  // 2. Accept nurse task with transaction concurrency protection
+  public async acceptNurseTask(
+    hospitalId: string,
+    taskId: string,
+    nurseStaffId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const dbInstance = getFirebaseDb();
+    const taskRef = this.getDocRef(hospitalId, 'nurseTasks', taskId);
+    const nurseRef = this.getDocRef(hospitalId, 'employees', nurseStaffId);
+
+    try {
+      await runTransaction(dbInstance, async (transaction) => {
+        const taskDoc = await transaction.get(taskRef);
+        if (!taskDoc.exists()) {
+          throw new Error('Nurse task request not found.');
+        }
+
+        const taskData = taskDoc.data() as NurseTask;
+        if (taskData.status !== 'pending') {
+          throw new Error(`This task has already been ${taskData.status}.`);
+        }
+
+        if (taskData.nurseStaffId !== nurseStaffId) {
+          throw new Error('This task was not assigned to you.');
+        }
+
+        const nurseDoc = await transaction.get(nurseRef);
+        if (!nurseDoc.exists()) {
+          throw new Error('Nurse employee record not found.');
+        }
+
+        const nurseData = nurseDoc.data() as Employee;
+        if (nurseData.status !== 'active') {
+          throw new Error('Nurse account is not active.');
+        }
+
+        if (nurseData.availabilityStatus === 'busy') {
+          throw new Error('You are currently marked as Busy on another active assignment.');
+        }
+
+        const now = new Date().toISOString();
+
+        // Atomically update task
+        transaction.update(taskRef, {
+          status: 'accepted',
+          acceptedAt: now,
+          updatedAt: serverTimestamp()
+        });
+
+        // Atomically set global nurse availability to BUSY
+        transaction.update(nurseRef, {
+          availabilityStatus: 'busy',
+          activeTaskId: taskId,
+          lastAvailabilityUpdate: now,
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn('acceptNurseTask transaction failed:', err);
+      return { success: false, error: err.message || 'Failed to accept task.' };
+    }
+  }
+
+  // 3. Start accepted nurse task (In Progress)
+  public async startNurseTask(
+    hospitalId: string,
+    taskId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const now = new Date().toISOString();
+      await this.updateDocument(hospitalId, 'nurseTasks', taskId, {
+        status: 'in_progress',
+        startedAt: now
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 4. Complete nurse task and release nurse to Available
+  public async completeNurseTask(
+    hospitalId: string,
+    taskId: string,
+    nurseStaffId: string,
+    completionNotes: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const dbInstance = getFirebaseDb();
+    const taskRef = this.getDocRef(hospitalId, 'nurseTasks', taskId);
+    const nurseRef = this.getDocRef(hospitalId, 'employees', nurseStaffId);
+
+    try {
+      const now = new Date().toISOString();
+
+      // Read task to get requester details
+      const taskDoc = await getDoc(taskRef);
+      const taskData = taskDoc.exists() ? (taskDoc.data() as NurseTask) : null;
+
+      await runTransaction(dbInstance, async (transaction) => {
+        // Mark task completed
+        transaction.update(taskRef, {
+          status: 'completed',
+          completedAt: now,
+          completionNotes: completionNotes.trim() || 'Task completed successfully.',
+          updatedAt: serverTimestamp()
+        });
+
+        // Release nurse back to AVAILABLE
+        transaction.update(nurseRef, {
+          availabilityStatus: 'available',
+          activeTaskId: null,
+          lastAvailabilityUpdate: now,
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      // Notify requester that the task is completed
+      if (taskData?.requestedByStaffId) {
+        const notifId = `notif-${Date.now()}`;
+        await this.setDocument(hospitalId, 'notifications', notifId, {
+          id: notifId,
+          hospitalId,
+          targetEmployeeId: taskData.requestedByStaffId,
+          title: `Task Completed: ${taskData.taskType}`,
+          message: `${taskData.nurseName} has completed the assigned assistance request${taskData.patientName ? ` for ${taskData.patientName}` : ''}. Notes: ${completionNotes || 'Completed'}`,
+          type: 'general',
+          isRead: false,
+          createdAt: now
+        }).catch(err => console.warn(err));
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('completeNurseTask error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 5. Reject nurse task with reason
+  public async rejectNurseTask(
+    hospitalId: string,
+    taskId: string,
+    nurseStaffId: string,
+    rejectionReason: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const dbInstance = getFirebaseDb();
+    const taskRef = this.getDocRef(hospitalId, 'nurseTasks', taskId);
+    const nurseRef = this.getDocRef(hospitalId, 'employees', nurseStaffId);
+
+    try {
+      const now = new Date().toISOString();
+      const taskDoc = await getDoc(taskRef);
+      const taskData = taskDoc.exists() ? (taskDoc.data() as NurseTask) : null;
+
+      await runTransaction(dbInstance, async (transaction) => {
+        transaction.update(taskRef, {
+          status: 'rejected',
+          rejectionReason: rejectionReason.trim() || 'Nurse unavailable to take this task.',
+          updatedAt: serverTimestamp()
+        });
+
+        // If nurse was busy on this task, release to available
+        const nurseDoc = await transaction.get(nurseRef);
+        if (nurseDoc.exists()) {
+          const nData = nurseDoc.data() as Employee;
+          if (nData.activeTaskId === taskId) {
+            transaction.update(nurseRef, {
+              availabilityStatus: 'available',
+              activeTaskId: null,
+              lastAvailabilityUpdate: now,
+              updatedAt: serverTimestamp()
+            });
+          }
+        }
+      });
+
+      // Notify requester of rejection
+      if (taskData?.requestedByStaffId) {
+        const notifId = `notif-${Date.now()}`;
+        await this.setDocument(hospitalId, 'notifications', notifId, {
+          id: notifId,
+          hospitalId,
+          targetEmployeeId: taskData.requestedByStaffId,
+          title: `Request Declined: ${taskData.taskType}`,
+          message: `${taskData.nurseName} declined the assistance request. Reason: ${rejectionReason || 'Unavailable'}`,
+          type: 'alert',
+          isRead: false,
+          createdAt: now
+        }).catch(err => console.warn(err));
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('rejectNurseTask error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 6. Cancel nurse task
+  public async cancelNurseTask(
+    hospitalId: string,
+    taskId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const now = new Date().toISOString();
+      const taskDoc = await getDoc(this.getDocRef(hospitalId, 'nurseTasks', taskId));
+      if (!taskDoc.exists()) return { success: false, error: 'Task not found.' };
+
+      const task = taskDoc.data() as NurseTask;
+      await this.updateDocument(hospitalId, 'nurseTasks', taskId, {
+        status: 'cancelled',
+        updatedAt: serverTimestamp()
+      });
+
+      // If nurse was busy on this task, release back to available
+      if (task.status === 'accepted' || task.status === 'in_progress') {
+        await this.updateDocument(hospitalId, 'employees', task.nurseStaffId, {
+          availabilityStatus: 'available',
+          activeTaskId: null,
+          lastAvailabilityUpdate: now
+        }).catch(err => console.warn(err));
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 7. Update nurse availability manually (Available / Busy / Offline)
+  public async setNurseAvailability(
+    hospitalId: string,
+    nurseStaffId: string,
+    status: 'available' | 'busy' | 'offline'
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    await this.updateDocument(hospitalId, 'employees', nurseStaffId, {
+      availabilityStatus: status,
+      lastAvailabilityUpdate: now
+    });
   }
 
   // AUDIT LOGGER

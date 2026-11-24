@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
+import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
 import {
   LayoutGrid,
   Users,
@@ -23,7 +24,9 @@ import {
   ChevronRight,
   Stethoscope,
   Microscope,
-  DollarSign
+  DollarSign,
+  HeartPulse,
+  Activity
 } from 'lucide-react';
 
 interface OwnerDashboardProps {
@@ -39,6 +42,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
     beds,
     invoices,
     roleRequests,
+    employees,
+    nurseTasks,
     posConnection,
     posMedicines,
     posLabTests,
@@ -47,8 +52,16 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
     handleDisconnectPos
   } = useHospital();
 
-  const [posInputId, setPosInputId] = useState(posConnection?.posUserId || 'upstageuser1015');
+  const [posInputId, setPosInputId] = useState(posConnection?.posUserId || '');
   const [isConnectingPos, setIsConnectingPos] = useState(false);
+  const [nurseHelpOpen, setNurseHelpOpen] = useState(false);
+
+  // Nurse Operations & Availability Stats
+  const nurses = employees.filter(e => e.status === 'active' && (e.primaryRole === 'nurse' || e.additionalRoles?.includes('nurse')));
+  const availableNurses = nurses.filter(n => (n.availabilityStatus || 'available') === 'available');
+  const busyNurses = nurses.filter(n => n.availabilityStatus === 'busy');
+  const offlineNurses = nurses.filter(n => n.availabilityStatus === 'offline');
+  const activeNurseTasks = nurseTasks.filter(t => t.status === 'pending' || t.status === 'accepted' || t.status === 'in_progress');
 
   const totalPatients = patients.length;
   const activeAdmissions = admissions.filter(a => a.status === 'active').length;
@@ -219,7 +232,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
               required
               value={posInputId}
               onChange={(e) => setPosInputId(e.target.value)}
-              placeholder="Enter Kadai POS User ID (e.g. upstageuser1015)..."
+              placeholder="Enter Kadai POS User ID / Shop Owner ID..."
               className="w-full sm:flex-1 text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 outline-none"
             />
             <button
@@ -332,6 +345,143 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab })
           ))}
         </div>
       </div>
+
+      {/* GLOBAL NURSING ROSTER & LIVE AVAILABILITY COMMAND CENTER */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shadow-md shadow-rose-200">
+              <HeartPulse className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                Hospital Nursing Roster & Live Duty Status Monitor
+              </h3>
+              <p className="text-xs text-slate-500">
+                Synchronized real-time floor availability and cross-department task dispatch
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setNurseHelpOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-200 flex items-center gap-1.5 transition-all"
+            >
+              <HeartPulse className="w-3.5 h-3.5" /> Dispatch Nurse Task
+            </button>
+            <button
+              onClick={() => onNavigateTab('nurse_dashboard')}
+              className="text-xs font-bold text-slate-700 hover:text-slate-900 px-3 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1"
+            >
+              Nurse Workspace <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Live Availability KPI Counters */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="text-slate-400 font-semibold uppercase text-[10px]">Total Nursing Staff</div>
+            <div className="text-2xl font-black text-slate-900 mt-1">{nurses.length}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Active roster profiles</div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200">
+            <div className="text-emerald-700 font-bold uppercase text-[10px] flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Available On Floor
+            </div>
+            <div className="text-2xl font-black text-emerald-700 mt-1">{availableNurses.length}</div>
+            <div className="text-[10px] text-emerald-600 mt-0.5">Ready for assignment</div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200">
+            <div className="text-amber-700 font-bold uppercase text-[10px] flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5" />
+              Busy On Active Tasks
+            </div>
+            <div className="text-2xl font-black text-amber-700 mt-1">{busyNurses.length}</div>
+            <div className="text-[10px] text-amber-600 mt-0.5">Attending patient care</div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="text-slate-500 font-semibold uppercase text-[10px]">Active Tasks Dispatched</div>
+            <div className="text-2xl font-black text-slate-800 mt-1">{activeNurseTasks.length}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">Hospital-wide queue</div>
+          </div>
+        </div>
+
+        {/* Live Nurses Floor Roster */}
+        <div className="border border-slate-100 rounded-2xl overflow-hidden">
+          <div className="bg-slate-50/80 px-4 py-2.5 border-b border-slate-100 text-xs font-bold text-slate-600 flex items-center justify-between">
+            <span>Nursing Staff Roster & Real-Time Availability</span>
+            <span className="text-[11px] font-normal text-slate-400">Updates live across all hospital wards</span>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
+            {nurses.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No active nurses currently registered in this hospital.
+              </div>
+            ) : (
+              nurses.map((nurse) => {
+                const status = nurse.availabilityStatus || 'available';
+                const isAvail = status === 'available';
+                const isBusy = status === 'busy';
+                const currentTask = activeNurseTasks.find(t => t.nurseStaffId === nurse.id);
+
+                return (
+                  <div key={nurse.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50/60 transition-colors text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs">
+                        {nurse.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900">{nurse.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          {nurse.employeeCode} • {nurse.departmentName || 'Nursing Care'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      {isBusy && currentTask && (
+                        <div className="hidden sm:block text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          Task: {currentTask.taskType} ({currentTask.requestedByName})
+                        </div>
+                      )}
+
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                          isAvail
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : isBusy
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            isAvail ? 'bg-emerald-500 animate-pulse' : isBusy ? 'bg-amber-500' : 'bg-slate-400'
+                          }`}
+                        />
+                        {status}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Reusable Nurse Help Dialog */}
+      <NurseHelpDialog
+        isOpen={nurseHelpOpen}
+        onClose={() => setNurseHelpOpen(false)}
+        defaultTaskType="Patient Assistance"
+      />
     </div>
   );
 };

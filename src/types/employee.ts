@@ -49,6 +49,9 @@ export interface Employee {
   specialization?: string;
   consultationFee?: number;
   status: 'active' | 'pending_approval' | 'rejected' | 'inactive' | 'suspended';
+  availabilityStatus?: 'available' | 'busy' | 'offline';
+  activeTaskId?: string;
+  lastAvailabilityUpdate?: string;
   attendanceStatus?: 'present' | 'absent' | 'on_leave' | 'half_day' | 'late';
   salaryDetails?: EmployeeSalary;
   avatarUrl?: string;
