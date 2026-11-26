@@ -92,6 +92,18 @@ interface HospitalContextType {
   markAttendance: (employeeId: string, date: string, status: AttendanceRecord['status'], checkInTime?: string, checkOutTime?: string) => void;
   markBulkAttendance: (date: string, status: AttendanceRecord['status']) => void;
 
+  // Biometric Face Attendance
+  enrollEmployeeFace: (employeeId: string, descriptor: number[], samplePhotoUrl?: string, qualityScore?: number) => Promise<boolean>;
+  deleteEmployeeFace: (employeeId: string) => Promise<boolean>;
+  recordFaceAttendance: (employeeId: string) => Promise<{
+    success: boolean;
+    type: 'check_in' | 'check_out';
+    timestamp: string;
+    employeeName: string;
+    employeeCode: string;
+    message: string;
+  }>;
+
   // Phase 1 Payroll
   calculateMonthlyPayroll: (monthStr: string) => void;
   updatePayrollStatus: (payrollId: string, status: PayrollRecord['paymentStatus'], paymentRef?: string) => void;
@@ -130,6 +142,7 @@ interface HospitalContextType {
     chiefComplaint: string;
     appointmentDate?: string;
     consultationFee?: number;
+    isFeePaid?: boolean;
   }) => Promise<Appointment>;
 
   // Phase 3: Doctor Clinical Consultation Workflow
@@ -601,6 +614,7 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     chiefComplaint: string;
     appointmentDate?: string;
     consultationFee?: number;
+    isFeePaid?: boolean;
   }): Promise<Appointment> => {
     const res = await firestoreService.registerWalkInAppointment(hospId, data);
     setAppointments(prev => {
@@ -1373,12 +1387,126 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       hospitalId: hospId,
       employeeId: e.id,
       employeeName: e.name,
+      employeeCode: e.employeeCode,
+      departmentName: e.departmentName,
       date,
       status,
       shift: 'General'
     }));
     updateAttendance([...newRecs, ...attendanceRecords]);
     success('Bulk Attendance', `Marked ${status} for all staff.`);
+  };
+
+  const enrollEmployeeFace = async (
+    employeeId: string,
+    descriptor: number[],
+    samplePhotoUrl?: string,
+    qualityScore: number = 95
+  ): Promise<boolean> => {
+    const enrolledAt = new Date().toISOString();
+    const faceTemplate = {
+      descriptor,
+      enrolledAt,
+      enrolledBy: currentUser?.name || 'Authorized Admin',
+      qualityScore,
+      samplePhotoUrl
+    };
+
+    const updates: Partial<Employee> = {
+      faceEnrolled: true,
+      faceEnrolledAt: enrolledAt,
+      faceTemplate,
+      ...(samplePhotoUrl ? { avatarUrl: samplePhotoUrl } : {})
+    };
+
+    updateEmployee(employeeId, updates);
+    success('Face Enrolled', 'Biometric face template registered successfully.');
+    return true;
+  };
+
+  const deleteEmployeeFace = async (employeeId: string): Promise<boolean> => {
+    const updates: Partial<Employee> = {
+      faceEnrolled: false,
+      faceEnrolledAt: undefined,
+      faceTemplate: undefined
+    };
+    updateEmployee(employeeId, updates);
+    success('Face Removed', 'Biometric enrollment template removed.');
+    return true;
+  };
+
+  const recordFaceAttendance = async (
+    employeeId: string
+  ): Promise<{
+    success: boolean;
+    type: 'check_in' | 'check_out';
+    timestamp: string;
+    employeeName: string;
+    employeeCode: string;
+    message: string;
+  }> => {
+    const emp = employees.find(e => e.id === employeeId);
+    if (!emp) throw new Error('Employee not found');
+
+    const today = new Date().toISOString().split('T')[0];
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const existingRec = attendanceRecords.find(a => a.employeeId === employeeId && a.date === today);
+
+    if (!existingRec || !existingRec.checkInTime) {
+      // CHECK-IN
+      const newRec: AttendanceRecord = {
+        id: `att-face-${Date.now()}`,
+        hospitalId: hospId,
+        employeeId: emp.id,
+        employeeCode: emp.employeeCode,
+        employeeName: emp.name,
+        departmentName: emp.departmentName,
+        designation: emp.designation,
+        date: today,
+        status: 'present',
+        checkInTime: nowTime,
+        shiftType: 'General (09:00-18:00)',
+        syncWithBiometric: true,
+        attendanceMethod: 'face_recognition',
+        verificationResult: 'Biometric Confidence Match',
+        deviceKioskId: 'KIOSK-01'
+      };
+
+      updateAttendance([newRec, ...attendanceRecords.filter(a => !(a.employeeId === employeeId && a.date === today))]);
+      updateEmployee(emp.id, { attendanceStatus: 'present', availabilityStatus: 'available' });
+
+      return {
+        success: true,
+        type: 'check_in',
+        timestamp: nowTime,
+        employeeName: emp.name,
+        employeeCode: emp.employeeCode,
+        message: `Welcome, ${emp.name}! Check-in recorded at ${nowTime}.`
+      };
+    } else {
+      // CHECK-OUT
+      const updatedRec: AttendanceRecord = {
+        ...existingRec,
+        checkOutTime: nowTime,
+        workHours: 8.5,
+        syncWithBiometric: true,
+        attendanceMethod: 'face_recognition',
+        verificationResult: 'Biometric Confidence Match',
+        deviceKioskId: 'KIOSK-01'
+      };
+
+      updateAttendance(attendanceRecords.map(a => a.id === existingRec.id ? updatedRec : a));
+      updateEmployee(emp.id, { availabilityStatus: 'offline' });
+
+      return {
+        success: true,
+        type: 'check_out',
+        timestamp: nowTime,
+        employeeName: emp.name,
+        employeeCode: emp.employeeCode,
+        message: `Goodbye, ${emp.name}! Check-out recorded at ${nowTime}.`
+      };
+    }
   };
 
   const calculateMonthlyPayroll = (monthStr: string) => {
@@ -1520,6 +1648,9 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         getPreviewEmployeeLoginId,
         toggleEmployeeStatus,
         approveEmployeeRequest,
+        enrollEmployeeFace,
+        deleteEmployeeFace,
+        recordFaceAttendance,
         rejectEmployeeRequest,
         updateEmployee,
         markAttendance,

@@ -487,7 +487,7 @@ export const NurseDashboard: React.FC = () => {
                         {task.taskType}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Requested by <strong className="text-slate-700">{task.requestedByName}</strong> ({task.requestedByRole.toUpperCase()})
+                        Requested by <strong className="text-slate-700">{task.requestedByName || 'Hospital Staff'}</strong> ({task.requestedByRole ? String(task.requestedByRole).replace(/_/g, ' ').toUpperCase() : 'STAFF'})
                       </p>
                     </div>
 

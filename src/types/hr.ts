@@ -13,6 +13,9 @@ export interface AttendanceRecord {
   shiftType?: 'Morning (07:00-15:00)' | 'Evening (15:00-23:00)' | 'Night (23:00-07:00)' | 'General (09:00-18:00)';
   workHours?: number;
   syncWithBiometric?: boolean;
+  attendanceMethod?: 'face_recognition' | 'manual' | 'biometric';
+  verificationResult?: string;
+  deviceKioskId?: string;
 }
 
 export interface LeaveRequest {

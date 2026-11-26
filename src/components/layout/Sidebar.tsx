@@ -50,6 +50,124 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
   const isHRManager = activeRole === 'hr_manager';
   const pendingApprovalsCount = employees.filter(e => e.status === 'pending_approval').length;
 
+  // STRICT REFERENCE IMAGE 2 REQUIREMENT: OWNER HAS SLIM ICON-ONLY VERTICAL SIDEBAR
+  if (activeRole === 'owner') {
+    return (
+      <>
+        {/* Mobile Backdrop Overlay */}
+        {isOpen && (
+          <div
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden transition-opacity duration-200"
+            aria-hidden="true"
+          />
+        )}
+
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-20 bg-white border-r border-slate-200/80 flex flex-col items-center justify-between flex-shrink-0 select-none shadow-xl lg:shadow-none transition-transform duration-200 lg:static lg:h-full lg:max-h-screen ${
+            isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
+          style={{ height: '100dvh', maxHeight: '100dvh' }}
+        >
+          {/* Top Logo */}
+          <div className="flex-shrink-0 pt-5 pb-3">
+            <button
+              type="button"
+              onClick={() => {
+                onSelectTab('owner_dashboard');
+                onClose?.();
+              }}
+              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 hover:scale-105 transition-transform cursor-pointer"
+              title="Upstage ERP"
+            >
+              <HeartPulse className="w-5 h-5 text-white" />
+            </button>
+          </div>
+
+          {/* Nav Icons with Scrollability when space is constrained */}
+          <div className="flex-1 w-full min-h-0 overflow-y-auto py-2 flex flex-col items-center gap-2.5 scrollbar-none">
+            <button
+              type="button"
+              onClick={() => {
+                onSelectTab('owner_dashboard');
+                onClose?.();
+              }}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                currentTab === 'owner_dashboard'
+                  ? 'bg-[#046c62] text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+              title="Dashboard Home (6 Cards)"
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onSelectTab('employees');
+                onClose?.();
+              }}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                currentTab === 'employees'
+                  ? 'bg-[#046c62] text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+              title="Employees & Workforce"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onSelectTab('approvals');
+                onClose?.();
+              }}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all relative cursor-pointer ${
+                currentTab === 'approvals'
+                  ? 'bg-[#046c62] text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+              title="Approvals"
+            >
+              <ShieldCheck className="w-5 h-5" />
+              {pendingApprovalsCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onSelectTab('payroll');
+                onClose?.();
+              }}
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                currentTab === 'payroll'
+                  ? 'bg-[#046c62] text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+              title="Billing & Payroll"
+            >
+              <CreditCard className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Bottom User Avatar */}
+          <div className="flex-shrink-0 pb-5 pt-3 flex flex-col items-center border-t border-slate-100/80 w-full">
+            <div
+              className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shadow-xs"
+              title={currentUser?.name || 'Owner'}
+            >
+              {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'O'}
+            </div>
+          </div>
+        </aside>
+      </>
+    );
+  }
+
   // STRICT PHASE 1 REQUIREMENT: HR MANAGER GETS ONLY 3 ITEMS
   const hrNavItems: NavItem[] = [
     {
@@ -450,12 +568,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
 
       {/* Responsive Sidebar Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white border-r border-slate-200/80 flex flex-col h-full shadow-2xl transition-transform duration-200 ease-in-out lg:static lg:h-screen lg:w-60 xl:w-64 lg:shadow-none flex-shrink-0 select-none ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white border-r border-slate-200/80 flex flex-col shadow-2xl transition-transform duration-200 ease-in-out lg:static lg:h-full lg:w-60 xl:w-64 lg:shadow-none flex-shrink-0 select-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
+        style={{ height: '100dvh', maxHeight: '100dvh' }}
       >
         {/* Brand Header */}
-        <div className="h-16 px-4 sm:px-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="h-16 px-4 sm:px-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 font-bold text-sm flex-shrink-0">
               <HeartPulse className="w-5 h-5 text-white" />
@@ -477,15 +596,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
           <button
             type="button"
             onClick={onClose}
-            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Close navigation"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Primary Navigation List */}
-        <div className="flex-1 py-4 sm:py-6 px-3 space-y-1.5 sm:space-y-2 overflow-y-auto">
+        {/* Primary Navigation List - Scrollable */}
+        <div className="flex-1 min-h-0 py-4 sm:py-6 px-3 space-y-1.5 sm:space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
@@ -544,7 +663,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
         </div>
 
         {/* Footer Role Info (Compact & Clean) */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-3 border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
           <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-2 overflow-hidden">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>

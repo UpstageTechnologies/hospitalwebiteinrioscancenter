@@ -38,6 +38,8 @@ interface AuthContextType {
   }) => Promise<void>;
   signInQuickStaff: (roleKey: string) => Promise<void>;
   refreshUser: () => void;
+  returnToOwner: () => void;
+  isViewingAsStaff: boolean;
   logout: () => Promise<void>;
 }
 
@@ -74,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userProfile, setUserProfile] = useState<UserProfileDoc | null>(null);
   const [currentHospital, setCurrentHospital] = useState<Hospital>(DEFAULT_INITIAL_HOSPITAL);
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
+  const [originalOwnerEmp, setOriginalOwnerEmp] = useState<Employee | null>(null);
   const [activeRole, setActiveRole] = useState<RoleId>('owner');
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
@@ -107,11 +110,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           if (!empData) {
-            // Check by email in hospital employees
+            // Check specifically by UID, email or loginId in hospital employees
             const allEmpsSnap = await getDocs(collection(getFirebaseDb(), 'hospitals', hospId, 'employees'));
+            const userEmail = (fbUser.email || '').toLowerCase().trim();
             const matchingDoc = allEmpsSnap.docs.find(d => {
               const dData = d.data();
-              return dData.email?.toLowerCase() === (fbUser.email || '').toLowerCase() || dData.primaryRole === profile.role;
+              if (dData.authUid && dData.authUid === fbUser.uid) return true;
+              if (userEmail && dData.email && dData.email.toLowerCase().trim() === userEmail) return true;
+              if (profile.loginId && dData.loginId && dData.loginId.toLowerCase().trim() === profile.loginId.toLowerCase().trim()) return true;
+              return false;
             });
             if (matchingDoc) {
               empData = matchingDoc.data() as Employee;
@@ -119,19 +126,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           if (!empData) {
-            // Real employee record for this user
+            // Real employee record uniquely for this authenticated user
             const ownerEmpId = profile.employeeId || `emp-${fbUser.uid.slice(0, 8)}`;
             const ownerEmp: Employee = {
               id: ownerEmpId,
               hospitalId: hospId,
-              employeeCode: profile.role === 'owner' ? 'EMP-001' : `EMP-${fbUser.uid.slice(0, 4).toUpperCase()}`,
-              name: profile.name || fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Hospital Owner'),
+              employeeCode: profile.loginId || (profile.role === 'owner' ? 'EMP-001' : `EMP-${fbUser.uid.slice(0, 4).toUpperCase()}`),
+              name: profile.name || fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Hospital Staff'),
               email: fbUser.email || '',
               phone: '',
-              departmentId: 'dept-admin',
-              departmentName: profile.role === 'owner' ? 'Hospital Administration' : 'General Department',
-              designation: profile.role === 'owner' ? 'Hospital Owner / CEO' : 'Staff Member',
-              primaryRole: profile.role || 'owner',
+              departmentId: profile.role === 'owner' ? 'dept-admin' : 'dept-gen-med',
+              departmentName: profile.role === 'owner' ? 'Hospital Administration' : 'Clinical Department',
+              designation: profile.role === 'owner' ? 'Hospital Owner' : profile.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+              primaryRole: profile.role || 'staff',
               additionalRoles: [],
               status: profile.status || 'active',
               joiningDate: new Date().toISOString().split('T')[0],
@@ -152,6 +159,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           setCurrentUser(empData);
+          if (profile.role === 'owner' || empData.primaryRole === 'owner') {
+            setOriginalOwnerEmp(empData);
+          }
           setActiveRole(profile.role || empData.primaryRole || 'owner');
         } catch (err) {
           console.warn('Error loading user profile from Firestore:', err);
@@ -262,17 +272,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await authService.resetPassword(email);
   };
 
+  const isViewingAsStaff = (userProfile?.role === 'owner' || originalOwnerEmp !== null) &&
+    (currentUser?.primaryRole !== 'owner' || activeRole !== 'owner');
+
   const loginAsEmployee = async (employeeId: string) => {
     try {
+      if ((userProfile?.role === 'owner' || activeRole === 'owner') && !originalOwnerEmp && currentUser) {
+        setOriginalOwnerEmp(currentUser);
+      }
+
       const empRef = doc(getFirebaseDb(), 'hospitals', currentHospital.id, 'employees', employeeId);
       const snap = await getDoc(empRef);
       if (snap.exists()) {
         const emp = snap.data() as Employee;
+        if (emp.primaryRole === 'owner') {
+          returnToOwner();
+          return;
+        }
         setCurrentUser(emp);
         setActiveRole(emp.primaryRole);
       }
     } catch (e) {
       console.warn('Could not switch to employee:', e);
+    }
+  };
+
+  const returnToOwner = () => {
+    if (originalOwnerEmp) {
+      setCurrentUser(originalOwnerEmp);
+      setActiveRole(originalOwnerEmp.primaryRole || 'owner');
+    } else if (userProfile?.role === 'owner') {
+      setActiveRole('owner');
+      refreshUser();
     }
   };
 
@@ -299,6 +330,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await authService.signOut();
       setCurrentUser(null);
+      setOriginalOwnerEmp(null);
       setUserProfile(null);
       setFirebaseUser(null);
     } finally {
@@ -321,6 +353,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchActiveRole,
         switchHospital,
         loginAsEmployee,
+        returnToOwner,
+        isViewingAsStaff,
         loginWithEmail,
         loginWithStaffId,
         setEmployeeAccountStatus,

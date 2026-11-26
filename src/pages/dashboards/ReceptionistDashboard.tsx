@@ -49,6 +49,8 @@ export const ReceptionistDashboard: React.FC = () => {
   const [wAge, setWAge] = useState('32');
   const [wGender, setWGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [wDoctorId, setWDoctorId] = useState('');
+  const [wConsultationFee, setWConsultationFee] = useState<string>('500');
+  const [wIsFeePaid, setWIsFeePaid] = useState<boolean>(true);
   const [wComplaint, setWComplaint] = useState('General Consultation & Checkup');
   const [wDate, setWDate] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -72,6 +74,16 @@ export const ReceptionistDashboard: React.FC = () => {
     e => (e.primaryRole === 'doctor' || e.additionalRoles.includes('doctor') || e.primaryRole === 'owner') && e.status === 'active'
   );
 
+  const handleDoctorChange = (selectedId: string) => {
+    setWDoctorId(selectedId);
+    const chosenDoc = doctors.find(d => d.id === selectedId);
+    if (chosenDoc?.consultationFee != null && Number(chosenDoc.consultationFee) >= 0) {
+      setWConsultationFee(String(chosenDoc.consultationFee));
+    } else {
+      setWConsultationFee('500');
+    }
+  };
+
   // Quick Walk-in Registration
   const handleWalkInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +91,9 @@ export const ReceptionistDashboard: React.FC = () => {
 
     const doc = doctors.find(d => d.id === wDoctorId) || doctors[0];
     if (!doc) return;
+
+    const parsedFee = parseFloat(wConsultationFee);
+    const validFee = !isNaN(parsedFee) && parsedFee >= 0 ? parsedFee : 500;
 
     await registerWalkInAppointment({
       patientName: wName.trim(),
@@ -91,7 +106,8 @@ export const ReceptionistDashboard: React.FC = () => {
       departmentName: doc.departmentName,
       chiefComplaint: wComplaint.trim(),
       appointmentDate: wDate,
-      consultationFee: 500
+      consultationFee: validFee,
+      isFeePaid: wIsFeePaid
     });
 
     setWName('');
@@ -297,18 +313,20 @@ export const ReceptionistDashboard: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Consulting Doctor *</label>
                 <select
                   value={wDoctorId}
-                  onChange={(e) => setWDoctorId(e.target.value)}
+                  onChange={(e) => handleDoctorChange(e.target.value)}
                   className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all"
                 >
                   <option value="">Select Doctor...</option>
                   {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.departmentName})</option>
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.departmentName}) {d.consultationFee ? `• ₹${d.consultationFee}` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Appointment Date</label>
                 <input
@@ -320,13 +338,35 @@ export const ReceptionistDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Consultation Fee</label>
-                <input
-                  type="text"
-                  disabled
-                  value="₹500.00 (Standard OPD)"
-                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 outline-none"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Consultation Fee (₹) *</label>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Editable</span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    value={wConsultationFee}
+                    onChange={(e) => setWConsultationFee(e.target.value)}
+                    placeholder="500.00"
+                    className="w-full text-xs pl-7 pr-3 py-3 rounded-xl border border-slate-200 bg-white focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Fee Payment Status</label>
+                <select
+                  value={wIsFeePaid ? 'paid' : 'pending'}
+                  onChange={(e) => setWIsFeePaid(e.target.value === 'paid')}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-semibold"
+                >
+                  <option value="paid">✅ Paid (Collected at Desk)</option>
+                  <option value="pending">⏳ Pending (Pay at Billing)</option>
+                </select>
               </div>
             </div>
 

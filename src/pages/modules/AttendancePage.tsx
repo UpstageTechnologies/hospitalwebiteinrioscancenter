@@ -17,8 +17,10 @@ import {
   History,
   X,
   Sparkles,
-  Download
+  Download,
+  ScanFace
 } from 'lucide-react';
+import { FaceAttendanceKioskModal } from '../../components/employee/FaceAttendanceKioskModal';
 
 export const AttendancePage: React.FC = () => {
   const { employees, attendanceRecords, markAttendance, markBulkAttendance } = useHospital();
@@ -27,6 +29,7 @@ export const AttendancePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
   const [historyModalEmployee, setHistoryModalEmployee] = useState<Employee | null>(null);
+  const [faceKioskOpen, setFaceKioskOpen] = useState(false);
 
   // STRICT REQUIREMENT: ONLY approved and active employees appear in Attendance!
   const approvedActiveEmployees = employees.filter(e => e.status === 'active');
@@ -102,7 +105,17 @@ export const AttendancePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFaceKioskOpen(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs shadow-blue-600/20 transition-all flex items-center gap-2 cursor-pointer"
+              title="Launch Live Touchless Face Attendance Kiosk"
+            >
+              <ScanFace className="w-4 h-4" />
+              <span>Face Attendance</span>
+            </button>
+
             <input
               type="date"
               value={selectedDate}
@@ -112,7 +125,7 @@ export const AttendancePage: React.FC = () => {
 
             <button
               onClick={handleMarkAllPresent}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Mark All Present</span>
@@ -348,6 +361,13 @@ export const AttendancePage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: FULL-SCREEN FACE ATTENDANCE KIOSK */}
+      {faceKioskOpen && (
+        <FaceAttendanceKioskModal
+          onClose={() => setFaceKioskOpen(false)}
+        />
       )}
     </div>
   );

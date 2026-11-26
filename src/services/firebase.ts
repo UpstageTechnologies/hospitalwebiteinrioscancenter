@@ -25,8 +25,7 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:279046839743:web:145ba4ebe291856a1a550a"
 };
 
-// Singleton initialization with Lazy Initialization Proxies
-// Prevents Vite module evaluation race conditions ("Component auth has not been registered yet")
+// Singleton initialization
 export const getFirebaseApp = (): FirebaseApp => {
   return getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 };
@@ -43,41 +42,10 @@ export const getFirebaseStorage = (): FirebaseStorage => {
   return getStorage(getFirebaseApp());
 };
 
-let _appInstance: FirebaseApp | undefined;
-export const app: FirebaseApp = new Proxy({} as FirebaseApp, {
-  get(_target, prop) {
-    if (!_appInstance) _appInstance = getFirebaseApp();
-    const val = (_appInstance as any)[prop];
-    return typeof val === 'function' ? val.bind(_appInstance) : val;
-  }
-});
-
-let _authInstance: Auth | undefined;
-export const auth: Auth = new Proxy({} as Auth, {
-  get(_target, prop) {
-    if (!_authInstance) _authInstance = getFirebaseAuth();
-    const val = (_authInstance as any)[prop];
-    return typeof val === 'function' ? val.bind(_authInstance) : val;
-  }
-});
-
-let _dbInstance: Firestore | undefined;
-export const db: Firestore = new Proxy({} as Firestore, {
-  get(_target, prop) {
-    if (!_dbInstance) _dbInstance = getFirebaseDb();
-    const val = (_dbInstance as any)[prop];
-    return typeof val === 'function' ? val.bind(_dbInstance) : val;
-  }
-});
-
-let _storageInstance: FirebaseStorage | undefined;
-export const storage: FirebaseStorage = new Proxy({} as FirebaseStorage, {
-  get(_target, prop) {
-    if (!_storageInstance) _storageInstance = getFirebaseStorage();
-    const val = (_storageInstance as any)[prop];
-    return typeof val === 'function' ? val.bind(_storageInstance) : val;
-  }
-});
+export const app: FirebaseApp = getFirebaseApp();
+export const auth: Auth = getFirebaseAuth();
+export const db: Firestore = getFirebaseDb();
+export const storage: FirebaseStorage = getFirebaseStorage();
 
 // Multi-Tenant Hospital Architecture Reference Helpers
 // Base User Reference: users/{uid}

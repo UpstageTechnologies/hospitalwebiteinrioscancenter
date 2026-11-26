@@ -234,7 +234,7 @@ const HospitalAppContent: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-800 font-sans relative overflow-x-hidden">
+    <div className="flex h-screen h-[100dvh] w-full bg-slate-50 text-slate-800 font-sans relative overflow-hidden">
       {/* Role-Specific Minimal Slim Sidebar with Mobile Drawer */}
       <Sidebar
         currentTab={currentTab}
@@ -247,7 +247,7 @@ const HospitalAppContent: React.FC = () => {
       />
 
       {/* Main Layout Area */}
-      <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Topbar with Direct Role Switcher & Multi-Tenant Hospital Picker */}
         <Topbar
           onNavigateTab={setCurrentTab}
@@ -255,8 +255,8 @@ const HospitalAppContent: React.FC = () => {
         />
 
         {/* Content Body */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-5 md:p-6 lg:p-8">
-          <div className="max-w-7xl 2xl:max-w-[1800px] w-full mx-auto min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5 lg:p-6">
+          <div className="max-w-[1600px] w-full mx-auto min-w-0">
             {renderActiveModule()}
           </div>
         </main>

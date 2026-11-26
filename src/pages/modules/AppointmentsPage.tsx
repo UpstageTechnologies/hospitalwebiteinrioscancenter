@@ -18,17 +18,31 @@ export const AppointmentsPage: React.FC = () => {
   const [showBookModal, setShowBookModal] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const [modalFee, setModalFee] = useState<string>('500');
   const [aptDate, setAptDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [timeSlot, setTimeSlot] = useState('10:00 AM');
   const [complaint, setComplaint] = useState('');
 
   const doctors = employees.filter(e => e.primaryRole === 'doctor' || e.additionalRoles.includes('doctor') || e.primaryRole === 'owner');
 
+  const handleDoctorSelect = (docId: string) => {
+    setSelectedDoctorId(docId);
+    const doc = employees.find(e => e.id === docId);
+    if (doc?.consultationFee != null && Number(doc.consultationFee) >= 0) {
+      setModalFee(String(doc.consultationFee));
+    } else {
+      setModalFee('500');
+    }
+  };
+
   const handleBook = (e: React.FormEvent) => {
     e.preventDefault();
     const pat = patients.find(p => p.id === selectedPatientId);
     const doc = employees.find(e => e.id === selectedDoctorId);
     if (!pat || !doc) return;
+
+    const parsedFee = parseFloat(modalFee);
+    const finalFee = !isNaN(parsedFee) && parsedFee >= 0 ? parsedFee : (doc.consultationFee || 500);
 
     bookAppointment({
       patientId: pat.id,
@@ -43,7 +57,7 @@ export const AppointmentsPage: React.FC = () => {
       timeSlot,
       type: 'general',
       chiefComplaint: complaint || 'General OPD Consultation',
-      consultationFee: doc.consultationFee || 1200,
+      consultationFee: finalFee,
       isFeePaid: true
     });
 
@@ -183,19 +197,43 @@ export const AppointmentsPage: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Consulting Doctor</label>
-                <select
-                  value={selectedDoctorId}
-                  onChange={(e) => setSelectedDoctorId(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-slate-50 outline-none"
-                  required
-                >
-                  <option value="">-- Choose Doctor --</option>
-                  {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.departmentName})</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Consulting Doctor</label>
+                  <select
+                    value={selectedDoctorId}
+                    onChange={(e) => handleDoctorSelect(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-slate-50 outline-none"
+                    required
+                  >
+                    <option value="">-- Choose Doctor --</option>
+                    {doctors.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.departmentName}) {d.consultationFee ? `• ₹${d.consultationFee}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">Consultation Fee (₹)</label>
+                    <span className="text-[10px] text-blue-600 font-bold">Editable</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={modalFee}
+                      onChange={(e) => setModalFee(e.target.value)}
+                      placeholder="500.00"
+                      className="w-full text-xs pl-6 pr-2.5 py-2.5 rounded-lg border border-slate-200 bg-white font-bold text-slate-900 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

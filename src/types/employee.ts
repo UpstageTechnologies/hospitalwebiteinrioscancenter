@@ -60,4 +60,13 @@ export interface Employee {
   avatarUrl?: string;
   profilePhoto?: string;
   approvalDetails?: EmployeeApprovalDetails;
+  faceEnrolled?: boolean;
+  faceEnrolledAt?: string;
+  faceTemplate?: {
+    descriptor: number[];
+    enrolledAt: string;
+    enrolledBy?: string;
+    qualityScore?: number;
+    samplePhotoUrl?: string;
+  };
 }

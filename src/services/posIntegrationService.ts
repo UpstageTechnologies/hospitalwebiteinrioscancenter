@@ -267,6 +267,8 @@ export async function disconnectKadaiPos(hospitalId: string): Promise<boolean> {
 // GET STORED POS CONNECTION
 // ============================================================================
 export async function getStoredPosConnection(hospitalId: string): Promise<PosConnection | null> {
+  if (!hospitalId || typeof hospitalId !== 'string') return null;
+
   try {
     const connRef = doc(getFirebaseDb(), "hospitals", hospitalId, "settings", "kadaiPosConnection");
     const snap = await getDoc(connRef);

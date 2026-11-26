@@ -299,6 +299,7 @@ export class FirestoreHospitalService {
       chiefComplaint: string;
       appointmentDate?: string;
       consultationFee?: number;
+      isFeePaid?: boolean;
     }
   ): Promise<{ appointment: Appointment; patient: Patient }> {
     // 1. Patient check / create
@@ -376,8 +377,8 @@ export class FirestoreHospitalService {
       status: 'waiting',
       chiefComplaint: data.chiefComplaint.trim() || 'General Consultation',
       bookedAt: new Date().toISOString(),
-      consultationFee: data.consultationFee || 500,
-      isFeePaid: true
+      consultationFee: typeof data.consultationFee === 'number' ? data.consultationFee : 500,
+      isFeePaid: data.isFeePaid !== undefined ? Boolean(data.isFeePaid) : true
     };
 
     await this.setDocument(hospitalId, 'appointments', aptId, appointment);
