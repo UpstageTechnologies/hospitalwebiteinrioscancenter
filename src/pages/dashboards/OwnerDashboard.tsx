@@ -47,7 +47,8 @@ import {
   UserPlus,
   Printer,
   ChevronDown,
-  User
+  User,
+  Truck
 } from 'lucide-react';
 
 export type OwnerView = 'home' | 'patients' | 'employees' | 'billing' | 'approvals' | 'appointments' | 'performance';
@@ -1864,23 +1865,21 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onNavigateTab, i
   // ==========================================================================
   return (
     <div className="space-y-8 max-w-7xl mx-auto py-2">
-      {/* GREETING HEADER (Reference Image 1) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-            Good Morning, {ownerName}!
-          </h1>
-          <p className="text-sm text-slate-500 mt-1 font-medium">
-            Hospital: <span className="font-semibold text-slate-800">{currentHospital.name}</span> • Multi-Tenant Isolated Healthcare Cloud
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-3.5 py-2 rounded-2xl border border-emerald-200 flex items-center gap-2 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            17 Hospital Roles Online
-          </span>
-        </div>
+      {/* Top Status & Quick Action Badges */}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => onNavigateTab('delivery_tracking')}
+          className="text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3.5 py-2 rounded-2xl border border-indigo-200 flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+          title="Open Live Delivery Tracking"
+        >
+          <Truck className="w-3.5 h-3.5 text-indigo-600" />
+          <span>Live Deliveries</span>
+        </button>
+        <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-3.5 py-2 rounded-2xl border border-emerald-200 flex items-center gap-2 shadow-xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          18 Hospital Roles Online
+        </span>
       </div>
 
       {/* 

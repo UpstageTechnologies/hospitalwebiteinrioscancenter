@@ -222,6 +222,20 @@ export const INITIAL_ROLE_TEMPLATES: Record<RoleId, RoleTemplate> = {
     icon: 'Truck',
     badgeColor: 'bg-red-100 text-red-800 border-red-300'
   },
+  delivery_person: {
+    id: 'delivery_person',
+    name: 'Hospital Delivery Person',
+    group: 'Support Services',
+    isMandatory: false,
+    isActiveForHospital: true,
+    description: 'Executes urgent hospital medicine home deliveries, lab specimen courier transit, and medical order fulfillment with live status tracking.',
+    defaultPermissions: [
+      'delivery.view',
+      'delivery.update'
+    ],
+    icon: 'Package',
+    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300'
+  },
   housekeeping: {
     id: 'housekeeping',
     name: 'Housekeeping & Sanitization',

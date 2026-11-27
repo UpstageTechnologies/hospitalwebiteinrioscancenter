@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import {
   storageService,
-  DEFAULT_DEPARTMENTS
+  DEFAULT_DEPARTMENTS,
+  DEFAULT_DELIVERIES
 } from '../services/storageService';
 import {
   formatEmployeeLoginId,
@@ -36,6 +37,7 @@ import type { Invoice, HospitalExpense, BillItem, PaymentMethod } from '../types
 import type { HospitalNotification, AuditLog } from '../types/audit';
 import type { AttendanceRecord, PayrollRecord } from '../types/hr';
 import type { NurseTask, NurseAvailabilityStatus } from '../types/nurse';
+import type { HospitalDelivery, DeliveryStatus } from '../types/delivery';
 import { INITIAL_ROLE_TEMPLATES } from '../constants/roleTemplates';
 import { useToast } from './ToastContext';
 
@@ -58,6 +60,9 @@ interface HospitalContextType {
   expenses: HospitalExpense[];
   invoices: Invoice[];
   notifications: HospitalNotification[];
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
+  markAllNotificationsAsRead: (forRole?: RoleId | 'all') => Promise<void>;
+  createHospitalNotification: (notification: Omit<HospitalNotification, 'id' | 'hospitalId' | 'createdAt' | 'isRead'>) => Promise<void>;
   auditLogs: AuditLog[];
   attendanceRecords: AttendanceRecord[];
   payrollRecords: PayrollRecord[];
@@ -71,6 +76,19 @@ interface HospitalContextType {
   rejectNurseTask: (taskId: string, nurseStaffId: string, rejectionReason: string) => Promise<{ success: boolean; error?: string }>;
   cancelNurseTask: (taskId: string) => Promise<{ success: boolean; error?: string }>;
   setNurseAvailability: (nurseStaffId: string, status: 'available' | 'busy' | 'offline') => Promise<void>;
+
+  // Hospital Delivery Person & Assignment Tracking
+  deliveries: HospitalDelivery[];
+  assignDelivery: (data: {
+    deliveryPersonId: string;
+    deliveryAddress: string;
+    receiverName: string;
+    receiverContact: string;
+    packageDescription?: string;
+  }) => Promise<{ success: boolean; deliveryId?: string; error?: string }>;
+  acceptDelivery: (deliveryId: string, deliveryPersonId: string) => Promise<{ success: boolean; error?: string }>;
+  rejectDelivery: (deliveryId: string, deliveryPersonId: string, reason: string) => Promise<{ success: boolean; error?: string }>;
+  updateDeliveryStatus: (deliveryId: string, deliveryPersonId: string, nextStatus: DeliveryStatus, notes?: string) => Promise<{ success: boolean; error?: string }>;
 
   // Kadai POS State & Integration
   posConnection: PosConnection | null;
@@ -312,6 +330,9 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [nurseTasks, setNurseTasks] = useState<NurseTask[]>(() =>
     storageService.getCollection<NurseTask>(hospId, 'nurseTasks', [])
   );
+  const [deliveries, setDeliveries] = useState<HospitalDelivery[]>(() =>
+    storageService.getCollection<HospitalDelivery>(hospId, 'deliveries', DEFAULT_DELIVERIES)
+  );
 
   // Kadai POS State
   const [posConnection, setPosConnection] = useState<PosConnection | null>(null);
@@ -461,6 +482,11 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       storageService.saveCollection(hospId, 'nurseTasks', data || []);
     });
 
+    const unsubDeliveries = firestoreService.subscribeToCollection<HospitalDelivery>(hospId, 'deliveries', (data) => {
+      setDeliveries(data || []);
+      storageService.saveCollection(hospId, 'deliveries', data || []);
+    });
+
     return () => {
       unsubDepts();
       unsubEmps();
@@ -483,6 +509,7 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubAtt();
       unsubPay();
       unsubNurseTasks();
+      unsubDeliveries();
     };
   }, [hospId]);
 
@@ -548,6 +575,77 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const updateNotifications = (newNotifs: HospitalNotification[]) => {
     setNotifications(newNotifs);
     storageService.saveCollection(hospId, 'notifications', newNotifs);
+  };
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    const updated = notifications.map(n => {
+      if (n.id === notificationId) {
+        const readBy = Array.isArray(n.readBy) ? [...n.readBy] : [];
+        if (currentUser?.id && !readBy.includes(currentUser.id)) {
+          readBy.push(currentUser.id);
+        }
+        return { ...n, isRead: true, readBy };
+      }
+      return n;
+    });
+    setNotifications(updated);
+    storageService.saveCollection(hospId, 'notifications', updated);
+    firestoreService.updateDocument(hospId, 'notifications', notificationId, {
+      isRead: true,
+      readBy: currentUser?.id ? [currentUser.id] : []
+    }).catch(err => console.warn('Firestore update notification error:', err));
+  };
+
+  const markAllNotificationsAsRead = async (forRole?: RoleId | 'all') => {
+    const updated = notifications.map(n => {
+      const matchesRole = !forRole || forRole === 'all' ||
+        n.targetRole === 'all' || n.targetRole === forRole ||
+        (n.targetRoles && (n.targetRoles.includes('all') || n.targetRoles.includes(forRole as RoleId)));
+
+      if (matchesRole && !n.isRead) {
+        const readBy = Array.isArray(n.readBy) ? [...n.readBy] : [];
+        if (currentUser?.id && !readBy.includes(currentUser.id)) {
+          readBy.push(currentUser.id);
+        }
+        return { ...n, isRead: true, readBy };
+      }
+      return n;
+    });
+    setNotifications(updated);
+    storageService.saveCollection(hospId, 'notifications', updated);
+
+    // Persist to firestore in background
+    updated.filter(n => n.isRead).slice(0, 20).forEach(n => {
+      firestoreService.updateDocument(hospId, 'notifications', n.id, {
+        isRead: true
+      }).catch(() => {});
+    });
+  };
+
+  const createHospitalNotification = async (notifData: Omit<HospitalNotification, 'id' | 'hospitalId' | 'createdAt' | 'isRead'>) => {
+    // Check for recent duplicate (same title and category within 5 seconds)
+    const isDuplicate = notifications.some(
+      n => n.title === notifData.title &&
+           n.category === notifData.category &&
+           Math.abs(Date.now() - new Date(n.createdAt).getTime()) < 5000
+    );
+    if (isDuplicate) return;
+
+    const newNotif: HospitalNotification = {
+      ...notifData,
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      hospitalId: hospId,
+      isRead: false,
+      readBy: [],
+      createdAt: new Date().toISOString()
+    };
+
+    setNotifications(prev => [newNotif, ...prev.filter(n => n.id !== newNotif.id)]);
+    const currentList = [newNotif, ...notifications];
+    storageService.saveCollection(hospId, 'notifications', currentList);
+
+    await firestoreService.setDocument(hospId, 'notifications', newNotif.id, newNotif)
+      .catch(err => console.warn('Firestore save notification error:', err));
   };
 
   const logAudit = (action: string, module: string, details: string, targetId?: string) => {
@@ -620,6 +718,16 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setAppointments(prev => {
       const exists = prev.some(a => a.id === res.appointment.id);
       return exists ? prev : [res.appointment, ...prev];
+    });
+    createHospitalNotification({
+      title: `New OPD Patient: Token #${res.appointment.tokenNumber}`,
+      message: `Patient ${res.patient.name} (${res.patient.uhid}) assigned to Dr. ${data.doctorName || 'Doctor'}.`,
+      category: 'clinical',
+      priority: 'normal',
+      targetRoles: ['doctor', 'nurse', 'receptionist', 'owner', 'admin'],
+      targetEmployeeId: data.doctorId,
+      targetTab: 'doctor_dashboard',
+      relatedRecordId: res.patient.id
     });
     success('Walk-in Registered', `Token #${res.appointment.tokenNumber} issued for ${res.patient.name}.`);
     return res.appointment;
@@ -843,6 +951,16 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const updated = [newApt, ...appointments];
     updateAppointments(updated);
     firestoreService.setDocument(hospId, 'appointments', newApt.id, newApt).catch(err => console.warn('Firestore set appointment error:', err));
+    createHospitalNotification({
+      title: `New Appointment Booked: Token #${tokenNumber}`,
+      message: `Appointment for ${newApt.patientName} with Dr. ${newApt.doctorName} on ${newApt.appointmentDate} at ${newApt.slotTime}.`,
+      category: 'appointment',
+      priority: 'normal',
+      targetRoles: ['doctor', 'receptionist', 'owner', 'admin'],
+      targetEmployeeId: newApt.doctorId,
+      targetTab: 'doctor_dashboard',
+      relatedRecordId: newApt.id
+    });
     logAudit('APPOINTMENT_BOOKED', 'OPD Management', `Token #${tokenNumber} for ${newApt.patientName} with ${newApt.doctorName}`);
     success('Appointment Confirmed', `Token #${tokenNumber} generated.`);
     return newApt;
@@ -967,6 +1085,15 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     updateRoleRequests([newReq, ...roleRequests]);
     firestoreService.setDocument(hospId, 'roleRequests', newReq.id, newReq).catch(err => console.warn(err));
+    createHospitalNotification({
+      title: 'New Role Request Pending Approval',
+      message: `${emp.name} (${emp.employeeCode}) requested ${requestType === 'add' ? 'addition of' : 'removal of'} role: ${formatRoleLabel(roleToRequest)}.`,
+      category: 'role_request',
+      priority: 'high',
+      targetRoles: ['owner', 'admin'],
+      targetTab: 'approvals',
+      relatedRecordId: newReq.id
+    });
     success('Request Submitted', 'Awaiting Admin review.');
   };
 
@@ -1005,6 +1132,15 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
     updateEmployees(updatedEmps);
     refreshUser();
+    createHospitalNotification({
+      title: 'Role Request Approved',
+      message: `Role ${formatRoleLabel(req.requestedRole)} has been approved and activated for ${req.employeeName}.`,
+      category: 'role_request',
+      priority: 'normal',
+      targetRoles: ['owner', 'admin', req.requestedRole],
+      targetEmployeeId: req.employeeId,
+      targetTab: 'my_roles'
+    });
     success('Role Approved', 'Permissions updated.');
   };
 
@@ -1267,6 +1403,16 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       newEmp.id
     );
 
+    createHospitalNotification({
+      title: isExecutive ? 'New Staff Account Activated' : 'New Employee Registration Awaiting Approval',
+      message: `${newEmp.name} (${newEmp.employeeCode}) registered as ${formatRoleLabel(newEmp.primaryRole)}. ${isExecutive ? 'Account active.' : 'Approval required.'}`,
+      category: 'approval',
+      priority: isExecutive ? 'normal' : 'high',
+      targetRoles: ['owner', 'admin', 'hr_manager'],
+      targetTab: isExecutive ? 'employees' : 'approvals',
+      relatedRecordId: newEmp.id
+    });
+
     const msg = isExecutive
       ? `${newEmp.primaryRole.replace('_', ' ').toUpperCase()} account created and activated for ${newEmp.name}.`
       : `Employee request for ${newEmp.name} submitted for Admin review.`;
@@ -1336,6 +1482,16 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       ...updates
     } : e));
     firestoreService.updateDocument(hospId, 'employees', employeeId, updates).catch(err => console.warn(err));
+    createHospitalNotification({
+      title: 'Employee Approved & Activated',
+      message: `${target?.name || 'Employee'} (${target?.employeeCode || ''}) has been approved and activated in the hospital roster.`,
+      category: 'approval',
+      priority: 'normal',
+      targetRoles: ['owner', 'admin', 'hr_manager', target?.primaryRole || 'staff'],
+      targetEmployeeId: employeeId,
+      targetTab: 'employees',
+      relatedRecordId: employeeId
+    });
     success('Employee Approved', 'Profile activated.');
   };
 
@@ -1597,6 +1753,167 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     success('Availability Updated', `Your status is now ${status.toUpperCase()}.`);
   };
 
+  // Hospital Delivery Methods
+  const assignDelivery = async (data: {
+    deliveryPersonId: string;
+    deliveryAddress: string;
+    receiverName: string;
+    receiverContact: string;
+    packageDescription?: string;
+  }) => {
+    const emp = employees.find(e => e.id === data.deliveryPersonId);
+    if (!emp) return { success: false, error: 'Selected Delivery Person was not found.' };
+
+    const res = await firestoreService.assignDelivery(hospId, {
+      ...data,
+      deliveryPersonName: emp.name,
+      deliveryPersonCode: emp.employeeCode,
+      assignedByStaffId: currentUser?.id,
+      assignedByStaffName: currentUser?.name || 'Hospital Dispatch'
+    });
+
+    if (res.success && res.delivery) {
+      const updated = [res.delivery, ...deliveries];
+      setDeliveries(updated);
+      storageService.saveCollection(hospId, 'deliveries', updated);
+      setEmployees(prev => prev.map(e => e.id === data.deliveryPersonId ? { ...e, availabilityStatus: 'busy' } : e));
+      createHospitalNotification({
+        title: 'New Delivery Order Assigned',
+        message: `Order #${res.delivery.orderNumber} assigned to ${emp.name} for ${data.receiverName} (${data.deliveryAddress}).`,
+        category: 'delivery',
+        priority: 'high',
+        targetRoles: ['delivery_person', 'owner', 'admin'],
+        targetEmployeeId: data.deliveryPersonId,
+        targetTab: 'delivery_dashboard',
+        relatedRecordId: res.delivery.id
+      });
+      success('Delivery Assigned', `Assigned to ${emp.name}.`);
+    } else {
+      error('Assignment Failed', res.error || 'Could not assign delivery.');
+    }
+    return res;
+  };
+
+  const acceptDelivery = async (deliveryId: string, deliveryPersonId: string) => {
+    const res = await firestoreService.acceptDelivery(hospId, deliveryId, deliveryPersonId, currentUser?.name);
+    if (res.success) {
+      const now = new Date().toISOString();
+      setDeliveries(prev => prev.map(d => {
+        if (d.id === deliveryId) {
+          return {
+            ...d,
+            status: 'Accepted' as DeliveryStatus,
+            acceptedAt: now,
+            updatedAt: now,
+            statusHistory: [
+              ...(d.statusHistory || []),
+              {
+                status: 'Accepted' as DeliveryStatus,
+                timestamp: now,
+                updatedBy: deliveryPersonId,
+                updatedByName: currentUser?.name || d.deliveryPersonName,
+                notes: 'Delivery accepted by delivery partner'
+              }
+            ]
+          };
+        }
+        return d;
+      }));
+      success('Delivery Accepted', 'You have accepted the assignment.');
+    } else {
+      error('Cannot Accept', res.error || 'Failed to accept delivery.');
+    }
+    return res;
+  };
+
+  const rejectDelivery = async (deliveryId: string, deliveryPersonId: string, reason: string) => {
+    const res = await firestoreService.rejectDelivery(hospId, deliveryId, deliveryPersonId, reason, currentUser?.name);
+    if (res.success) {
+      const now = new Date().toISOString();
+      setDeliveries(prev => prev.map(d => {
+        if (d.id === deliveryId) {
+          return {
+            ...d,
+            status: 'Rejected' as DeliveryStatus,
+            rejectionReason: reason,
+            updatedAt: now,
+            statusHistory: [
+              ...(d.statusHistory || []),
+              {
+                status: 'Rejected' as DeliveryStatus,
+                timestamp: now,
+                updatedBy: deliveryPersonId,
+                updatedByName: currentUser?.name || d.deliveryPersonName,
+                notes: `Declined: ${reason}`
+              }
+            ]
+          };
+        }
+        return d;
+      }));
+      setEmployees(prev => prev.map(e => e.id === deliveryPersonId ? { ...e, availabilityStatus: 'available' } : e));
+      info('Delivery Declined', 'You have declined this delivery assignment.');
+    } else {
+      error('Error', res.error || 'Failed to decline delivery.');
+    }
+    return res;
+  };
+
+  const updateDeliveryStatus = async (
+    deliveryId: string,
+    deliveryPersonId: string,
+    nextStatus: DeliveryStatus,
+    notes?: string
+  ) => {
+    const res = await firestoreService.updateDeliveryStatus(hospId, deliveryId, deliveryPersonId, nextStatus, notes, currentUser?.name);
+    if (res.success) {
+      const now = new Date().toISOString();
+      setDeliveries(prev => prev.map(d => {
+        if (d.id === deliveryId) {
+          const historyItem = {
+            status: nextStatus,
+            timestamp: now,
+            updatedBy: deliveryPersonId,
+            updatedByName: currentUser?.name || d.deliveryPersonName,
+            notes: notes || `Status updated to ${nextStatus}`
+          };
+          const updated: HospitalDelivery = {
+            ...d,
+            status: nextStatus,
+            updatedAt: now,
+            statusHistory: [...(d.statusHistory || []), historyItem]
+          };
+          if (nextStatus === 'Collected') updated.collectedAt = now;
+          if (nextStatus === 'On the Way') updated.onTheWayAt = now;
+          if (nextStatus === 'Delivered') updated.deliveredAt = now;
+          return updated;
+        }
+        return d;
+      }));
+
+      const targetDel = deliveries.find(d => d.id === deliveryId);
+      createHospitalNotification({
+        title: `Delivery Order ${nextStatus.toUpperCase()}`,
+        message: `Order #${targetDel?.orderNumber || deliveryId} updated to "${nextStatus}" by ${currentUser?.name || targetDel?.deliveryPersonName || 'Delivery Partner'}.`,
+        category: 'delivery',
+        priority: nextStatus === 'Delivered' ? 'normal' : 'high',
+        targetRoles: ['owner', 'admin', 'pharmacist', 'pharmacy_staff'],
+        targetTab: 'delivery_tracking',
+        relatedRecordId: deliveryId
+      });
+
+      if (nextStatus === 'Delivered') {
+        setEmployees(prev => prev.map(e => e.id === deliveryPersonId ? { ...e, availabilityStatus: 'available' } : e));
+        success('Delivery Completed!', 'Delivery marked as Delivered.');
+      } else {
+        info('Status Updated', `Delivery is now "${nextStatus}".`);
+      }
+    } else {
+      error('Update Failed', res.error || 'Could not update delivery status.');
+    }
+    return res;
+  };
+
   return (
     <HospitalContext.Provider
       value={{
@@ -1618,6 +1935,9 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         expenses,
         invoices,
         notifications,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+        createHospitalNotification,
         auditLogs,
         attendanceRecords,
         payrollRecords,
@@ -1629,6 +1949,11 @@ export const HospitalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         rejectNurseTask,
         cancelNurseTask,
         setNurseAvailability,
+        deliveries,
+        assignDelivery,
+        acceptDelivery,
+        rejectDelivery,
+        updateDeliveryStatus,
         posConnection,
         posMedicines,
         posLabTests,

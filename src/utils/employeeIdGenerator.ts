@@ -28,6 +28,7 @@ export const ROLE_TWO_LETTER_CODES: Record<RoleId, string> = {
   store_manager: 'ST',
   accountant: 'AC',
   ambulance_driver: 'AM',
+  delivery_person: 'DP',
   housekeeping: 'HO',
   security: 'SE',
   maintenance: 'MA'

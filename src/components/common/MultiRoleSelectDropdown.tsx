@@ -82,7 +82,7 @@ export const MultiRoleSelectDropdown: React.FC<MultiRoleSelectDropdownProps> = (
       {/* Dropdown Trigger Field */}
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full h-[38px] min-h-[38px] px-2.5 bg-white border rounded-xl flex items-center justify-between gap-1.5 cursor-pointer transition-all shadow-2xs select-none ${
+        className={`w-full h-[40px] min-h-[40px] px-2.5 bg-white border rounded-xl flex items-center justify-between gap-1.5 cursor-pointer transition-all shadow-2xs select-none ${
           isOpen
             ? 'border-emerald-500 ring-2 ring-emerald-100'
             : selectedRoles.length > 0

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useHospital } from '../../context/HospitalContext';
 import type { RoleId } from '../../types/roles';
@@ -24,6 +25,8 @@ import {
   LayoutGrid,
   Receipt,
   ShieldCheck,
+  Truck,
+  Package,
   X
 } from 'lucide-react';
 
@@ -50,8 +53,113 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
   const isHRManager = activeRole === 'hr_manager';
   const pendingApprovalsCount = employees.filter(e => e.status === 'pending_approval').length;
 
+  // Custom Premium SaaS Tooltip State for Sidebar Navigation
+  const [activeTooltip, setActiveTooltip] = useState<{
+    label: string;
+    top: number;
+    left: number;
+    visible: boolean;
+  } | null>(null);
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showTooltip = (label: string, element: HTMLElement) => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+    const rect = element.getBoundingClientRect();
+    setActiveTooltip({
+      label,
+      top: rect.top + rect.height / 2,
+      left: rect.right + 10,
+      visible: true,
+    });
+  };
+
+  const hideTooltip = () => {
+    setActiveTooltip((prev) => (prev ? { ...prev, visible: false } : null));
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+    }
+    hideTimeoutRef.current = setTimeout(() => {
+      setActiveTooltip(null);
+      hideTimeoutRef.current = null;
+    }, 150);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Tooltip Portal Element
+  const renderTooltipPortal = () => {
+    if (!activeTooltip || typeof document === 'undefined') return null;
+    return createPortal(
+      <div
+        role="tooltip"
+        className={`fixed z-[9999] pointer-events-none flex items-center transition-all duration-150 ease-out ${
+          activeTooltip.visible
+            ? 'opacity-100 scale-100 translate-x-0'
+            : 'opacity-0 scale-95 -translate-x-1'
+        }`}
+        style={{
+          top: `${activeTooltip.top}px`,
+          left: `${activeTooltip.left}px`,
+          transform: 'translateY(-50%)',
+        }}
+      >
+        {/* Small Arrow Pointing Towards the Hovered Sidebar Icon */}
+        <div
+          className="w-0 h-0 border-y-[5px] border-y-transparent border-r-[6px] border-r-[#172033] mr-[-1px] flex-shrink-0"
+          aria-hidden="true"
+        />
+        {/* Tooltip Bubble */}
+        <div
+          className="bg-[#172033] text-white text-[12px] font-medium px-3 py-1.5 rounded-[9px] shadow-xl shadow-slate-950/25 whitespace-nowrap tracking-wide select-none"
+          style={{ backgroundColor: '#172033', borderRadius: '9px' }}
+        >
+          {activeTooltip.label}
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   // STRICT REFERENCE IMAGE 2 REQUIREMENT: OWNER HAS SLIM ICON-ONLY VERTICAL SIDEBAR
   if (activeRole === 'owner') {
+    const ownerNavItems = [
+      {
+        id: 'owner_dashboard',
+        label: 'Dashboard Home',
+        icon: LayoutGrid,
+      },
+      {
+        id: 'employees',
+        label: 'Employees & Workforce',
+        icon: Users,
+      },
+      {
+        id: 'approvals',
+        label: 'Approvals',
+        icon: ShieldCheck,
+        badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
+      },
+      {
+        id: 'payroll',
+        label: 'Billing & Payroll',
+        icon: CreditCard,
+      },
+      {
+        id: 'delivery_tracking',
+        label: 'Delivery Tracking & Dispatch',
+        icon: Truck,
+      },
+    ];
+
     return (
       <>
         {/* Mobile Backdrop Overlay */}
@@ -77,8 +185,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
                 onSelectTab('owner_dashboard');
                 onClose?.();
               }}
-              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 hover:scale-105 transition-transform cursor-pointer"
-              title="Upstage ERP"
+              onMouseEnter={(e) => showTooltip('Upstage Hospital ERP', e.currentTarget)}
+              onMouseLeave={hideTooltip}
+              onFocus={(e) => showTooltip('Upstage Hospital ERP', e.currentTarget)}
+              onBlur={hideTooltip}
+              aria-label="Upstage Hospital ERP"
+              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 hover:scale-105 transition-all duration-200 cursor-pointer outline-none focus:ring-2 focus:ring-emerald-400"
             >
               <HeartPulse className="w-5 h-5 text-white" />
             </button>
@@ -86,84 +198,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
 
           {/* Nav Icons with Scrollability when space is constrained */}
           <div className="flex-1 w-full min-h-0 overflow-y-auto py-2 flex flex-col items-center gap-2.5 scrollbar-none">
-            <button
-              type="button"
-              onClick={() => {
-                onSelectTab('owner_dashboard');
-                onClose?.();
-              }}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-                currentTab === 'owner_dashboard'
-                  ? 'bg-[#046c62] text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-              title="Dashboard Home (6 Cards)"
-            >
-              <LayoutGrid className="w-5 h-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                onSelectTab('employees');
-                onClose?.();
-              }}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-                currentTab === 'employees'
-                  ? 'bg-[#046c62] text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-              title="Employees & Workforce"
-            >
-              <Users className="w-5 h-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                onSelectTab('approvals');
-                onClose?.();
-              }}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all relative cursor-pointer ${
-                currentTab === 'approvals'
-                  ? 'bg-[#046c62] text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-              title="Approvals"
-            >
-              <ShieldCheck className="w-5 h-5" />
-              {pendingApprovalsCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                onSelectTab('payroll');
-                onClose?.();
-              }}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-                currentTab === 'payroll'
-                  ? 'bg-[#046c62] text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-              title="Billing & Payroll"
-            >
-              <CreditCard className="w-5 h-5" />
-            </button>
+            {ownerNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectTab(item.id);
+                    onClose?.();
+                  }}
+                  onMouseEnter={(e) => showTooltip(item.label, e.currentTarget)}
+                  onMouseLeave={hideTooltip}
+                  onFocus={(e) => showTooltip(item.label, e.currentTarget)}
+                  onBlur={hideTooltip}
+                  aria-label={item.label}
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 relative cursor-pointer outline-none focus:ring-2 focus:ring-emerald-400 ${
+                    isActive
+                      ? 'bg-[#046c62] text-white shadow-md shadow-emerald-900/20'
+                      : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100 hover:scale-105'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 transition-transform duration-200" />
+                  {item.badge !== undefined && (
+                    <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Bottom User Avatar */}
           <div className="flex-shrink-0 pb-5 pt-3 flex flex-col items-center border-t border-slate-100/80 w-full">
             <div
-              className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shadow-xs"
-              title={currentUser?.name || 'Owner'}
+              onMouseEnter={(e) => showTooltip(currentUser?.name || 'Hospital Administrator', e.currentTarget)}
+              onMouseLeave={hideTooltip}
+              onFocus={(e) => showTooltip(currentUser?.name || 'Hospital Administrator', e.currentTarget)}
+              onBlur={hideTooltip}
+              tabIndex={0}
+              role="button"
+              aria-label={currentUser?.name || 'Hospital Administrator'}
+              className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shadow-xs hover:scale-105 hover:border-slate-300 transition-all duration-200 cursor-pointer outline-none focus:ring-2 focus:ring-emerald-400"
             >
               {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'O'}
             </div>
           </div>
         </aside>
+
+        {/* Custom Premium SaaS Navigation Tooltip Portal */}
+        {renderTooltipPortal()}
       </>
     );
   }
@@ -226,6 +310,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
         label: 'Operations',
         icon: LayoutGrid,
         description: 'Module Hub'
+      },
+      {
+        id: 'delivery_tracking',
+        label: 'Deliveries',
+        icon: Truck,
+        description: 'Live Dispatch'
       }
     ],
 
@@ -255,6 +345,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
         label: 'Payroll',
         icon: CreditCard,
         description: 'Disbursements'
+      },
+      {
+        id: 'delivery_tracking',
+        label: 'Deliveries',
+        icon: Truck,
+        description: 'Live Dispatch'
       }
     ],
 
@@ -489,6 +585,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
       }
     ],
 
+    delivery_person: [
+      {
+        id: 'delivery_dashboard',
+        label: 'Deliveries',
+        icon: Truck,
+        description: 'Active & Assigned Trips'
+      },
+      {
+        id: 'employee_dashboard',
+        label: 'My Schedule',
+        icon: Calendar,
+        description: 'Duty Shifts'
+      },
+      {
+        id: 'my_roles',
+        label: 'My Roles',
+        icon: ShieldCheck,
+        description: 'Role Governance'
+      }
+    ],
+
     housekeeping: [
       {
         id: 'support_dashboard',
@@ -680,6 +797,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
           </div>
         </div>
       </aside>
+
+      {/* Custom Premium SaaS Navigation Tooltip Portal */}
+      {renderTooltipPortal()}
     </>
   );
 };

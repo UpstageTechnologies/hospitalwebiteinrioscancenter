@@ -19,6 +19,7 @@ export type RoleId =
   | 'accountant'
   | 'radiologist'
   | 'ambulance_driver'
+  | 'delivery_person'
   | 'housekeeping'
   | 'security'
   | 'maintenance';
@@ -88,6 +89,9 @@ export type PermissionCode =
   // Operations & Support
   | 'inventory.manage'
   | 'ambulance.dispatch'
+  | 'delivery.view'
+  | 'delivery.manage'
+  | 'delivery.update'
   | 'housekeeping.manage'
   | 'security.manage'
   | 'maintenance.manage'

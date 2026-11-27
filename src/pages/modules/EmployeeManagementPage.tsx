@@ -175,6 +175,7 @@ export const EmployeeManagementPage: React.FC = () => {
       { id: 'store_manager', label: 'Store & Inventory Manager', group: 'Operations' },
       { id: 'accountant', label: 'Hospital Accountant', group: 'Administration' },
       { id: 'ambulance_driver', label: 'Ambulance Driver', group: 'Support' },
+      { id: 'delivery_person', label: 'Delivery Person', group: 'Support' },
       { id: 'housekeeping', label: 'Housekeeping Staff', group: 'Support' },
       { id: 'security', label: 'Security Officer', group: 'Support' },
       { id: 'maintenance', label: 'Maintenance / Biomedical Tech', group: 'Support' }
@@ -280,6 +281,10 @@ export const EmployeeManagementPage: React.FC = () => {
       setFormDesignation('Staff Nurse');
       const nurseDept = departments.find(d => d.id === 'dept-nursing' || d.name.toLowerCase().includes('nurs') || d.name.toLowerCase().includes('general'));
       if (nurseDept) setFormDeptId(nurseDept.id);
+    } else if (newRole === 'delivery_person') {
+      setFormDesignation('Hospital Delivery Partner');
+      const suppDept = departments.find(d => d.id === 'dept-pharm' || d.id === 'dept-support' || d.name.toLowerCase().includes('pharm') || d.name.toLowerCase().includes('logistics'));
+      if (suppDept) setFormDeptId(suppDept.id);
     }
   };
 
@@ -610,28 +615,36 @@ export const EmployeeManagementPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 7-Column Responsive Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3.5">
-                    {/* 1. Full Name and Employee ID */}
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        Employee & ID
-                      </span>
+                  {/* Clean, Professional 3-Row Form Layout (4 Columns per Row on Desktop) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* ROW 1: Basic & Access Information */}
+                    {/* 1. Full Name */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Full Name <span className="text-emerald-600">*</span>
+                      </label>
                       <input
                         type="text"
-                        placeholder="Full Name (e.g. Dr. Ramesh) *"
+                        placeholder="e.g. Dr. Ramesh Sharma"
                         value={formName}
                         onChange={(e) => {
                           setFormName(e.target.value);
                           if (inlineError) setInlineError(null);
                         }}
-                        className="w-full text-xs font-semibold text-slate-900 px-3 h-[38px] bg-white border border-emerald-300 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 outline-none shadow-2xs placeholder-slate-400"
+                        className="w-full text-xs font-semibold text-slate-900 px-3 h-[40px] bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 outline-none shadow-2xs placeholder-slate-400 transition-colors"
                         autoFocus
                         required
                       />
-                      <div className="flex items-center gap-1.5 h-[38px]">
+                    </div>
+
+                    {/* 2. Employee ID & Gender */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Employee ID & Gender
+                      </label>
+                      <div className="flex items-center gap-2 h-[40px]">
                         <span
-                          className="font-mono text-xs font-bold bg-slate-50 text-emerald-800 px-2.5 h-[38px] rounded-xl border border-slate-200 shadow-2xs whitespace-nowrap inline-flex items-center"
+                          className="font-mono text-xs font-bold bg-slate-50 text-emerald-800 px-3 h-[40px] rounded-xl border border-slate-200 shadow-2xs whitespace-nowrap inline-flex items-center justify-center"
                           title="Employee ID Code"
                         >
                           {formCode}
@@ -639,7 +652,7 @@ export const EmployeeManagementPage: React.FC = () => {
                         <select
                           value={formGender}
                           onChange={(e) => setFormGender(e.target.value as any)}
-                          className="text-xs px-2.5 h-[38px] bg-white border border-slate-200 rounded-xl text-slate-700 outline-none cursor-pointer shadow-2xs flex-1"
+                          className="text-xs px-3 h-[40px] bg-white border border-slate-200 rounded-xl text-slate-700 outline-none cursor-pointer shadow-2xs flex-1 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-colors"
                           title="Gender"
                         >
                           <option value="Male">Male</option>
@@ -649,19 +662,26 @@ export const EmployeeManagementPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 2. Login ID and Password */}
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        Login Credentials
-                      </span>
+                    {/* 3. Login ID */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Login ID <span className="text-[10px] text-emerald-600 font-semibold">(Auto-Generated)</span>
+                      </label>
                       <div
-                        className="inline-flex items-center gap-1.5 bg-slate-50 text-emerald-950 font-black text-xs px-3 h-[38px] rounded-xl border border-emerald-300 shadow-2xs w-full"
+                        className="inline-flex items-center gap-2 bg-emerald-50/50 text-emerald-950 font-black text-xs px-3 h-[40px] rounded-xl border border-emerald-200 shadow-2xs w-full"
                         title="Auto-Generated Login ID"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                         <span className="truncate">{previewLoginId}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 h-[38px]">
+                    </div>
+
+                    {/* 4. Password with Eye Icon inside */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Password <span className="text-emerald-600">*</span>
+                      </label>
+                      <div className="relative flex items-center w-full">
                         <input
                           type={showFormPassword ? "text" : "password"}
                           value={formPassword}
@@ -669,14 +689,14 @@ export const EmployeeManagementPage: React.FC = () => {
                             setFormPassword(e.target.value);
                             setFormConfirmPassword(e.target.value);
                           }}
-                          placeholder="Password"
-                          className="w-full text-xs font-mono px-3 h-[38px] bg-white border border-slate-200 rounded-xl text-slate-800 outline-none shadow-2xs focus:border-emerald-500"
+                          placeholder="Staff login password"
+                          className="w-full text-xs font-mono pl-3 pr-10 h-[40px] bg-white border border-slate-200 rounded-xl text-slate-800 outline-none shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-colors"
                           title="Staff Login Password"
                         />
                         <button
                           type="button"
                           onClick={() => setShowFormPassword(!showFormPassword)}
-                          className="px-2.5 h-[38px] rounded-xl text-slate-400 hover:text-slate-600 bg-white border border-slate-200 cursor-pointer flex-shrink-0 flex items-center justify-center transition-colors"
+                          className="absolute right-2.5 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition-colors"
                           title={showFormPassword ? "Hide password" : "Show password"}
                         >
                           {showFormPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -684,15 +704,16 @@ export const EmployeeManagementPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 3. Primary Role and Additional Roles */}
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        Roles & Privileges
-                      </span>
+                    {/* ROW 2: Roles & Contact Information */}
+                    {/* 5. Primary Role */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Primary Role <span className="text-emerald-600">*</span>
+                      </label>
                       <select
                         value={formPrimaryRole}
                         onChange={(e) => handlePrimaryRoleChange(e.target.value as RoleId)}
-                        className="w-full text-xs font-bold capitalize px-3 h-[38px] bg-white border border-slate-200 rounded-xl text-slate-800 outline-none cursor-pointer shadow-2xs focus:border-emerald-500"
+                        className="w-full text-xs font-bold capitalize px-3 h-[40px] bg-white border border-slate-200 rounded-xl text-slate-800 outline-none cursor-pointer shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-colors"
                         title="Primary Assigned Role"
                       >
                         {allowedRoles.map((r) => (
@@ -701,27 +722,34 @@ export const EmployeeManagementPage: React.FC = () => {
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* 6. Additional Roles */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Additional Roles
+                      </label>
                       <div className="w-full">
                         <MultiRoleSelectDropdown
                           availableRoles={allowedRoles}
                           selectedRoles={formAdditionalRoles}
                           onChange={setFormAdditionalRoles}
                           primaryRole={formPrimaryRole}
-                          placeholder="Additional Roles..."
+                          placeholder="Select additional roles..."
                         />
                       </div>
                     </div>
 
-                    {/* 4. Mobile and Email */}
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        Contact Information
-                      </span>
-                      <div className="flex items-center gap-2 bg-white border border-emerald-300 rounded-xl px-3 h-[38px] shadow-2xs focus-within:border-emerald-500">
+                    {/* 7. Contact Mobile */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Mobile Number <span className="text-emerald-600">*</span>
+                      </label>
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 h-[40px] shadow-2xs focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-400 transition-colors">
                         <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                         <input
                           type="tel"
-                          placeholder="+91 Mobile *"
+                          placeholder="+91 Mobile Number *"
                           value={formMobile}
                           onChange={(e) => {
                             setFormMobile(e.target.value);
@@ -731,11 +759,18 @@ export const EmployeeManagementPage: React.FC = () => {
                           required
                         />
                       </div>
-                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 h-[38px] shadow-2xs focus-within:border-emerald-500">
+                    </div>
+
+                    {/* 8. Email Address */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Email Address <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+                      </label>
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 h-[40px] shadow-2xs focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-400 transition-colors">
                         <Mail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                         <input
                           type="email"
-                          placeholder="Email (optional)"
+                          placeholder="employee@hospital.com"
                           value={formEmail}
                           onChange={(e) => setFormEmail(e.target.value)}
                           className="w-full text-xs h-full bg-transparent text-slate-700 outline-none placeholder-slate-400"
@@ -743,22 +778,30 @@ export const EmployeeManagementPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 5. Joining Date and Employment Type */}
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        Joining & Terms
-                      </span>
+                    {/* ROW 3: Joining Date, Employment Type, Salary & Action */}
+                    {/* 9. Joining Date */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Date of Joining
+                      </label>
                       <input
                         type="date"
                         value={formJoiningDate}
                         onChange={(e) => setFormJoiningDate(e.target.value)}
-                        className="w-full text-xs px-3 h-[38px] bg-white border border-slate-200 rounded-xl text-slate-700 outline-none cursor-pointer shadow-2xs"
+                        className="w-full text-xs px-3 h-[40px] bg-white border border-slate-200 rounded-xl text-slate-700 outline-none cursor-pointer shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-colors"
                         title="Joining Date"
                       />
+                    </div>
+
+                    {/* 10. Employment Type */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Employment Type
+                      </label>
                       <select
                         value={formEmploymentType}
                         onChange={(e) => setFormEmploymentType(e.target.value as any)}
-                        className="w-full text-xs px-2.5 h-[38px] bg-white border border-slate-200 rounded-xl text-slate-700 outline-none cursor-pointer shadow-2xs"
+                        className="w-full text-xs px-3 h-[40px] bg-white border border-slate-200 rounded-xl text-slate-700 outline-none cursor-pointer shadow-2xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-colors"
                         title="Employment Type"
                       >
                         <option value="Full-time">Full-time</option>
@@ -768,47 +811,39 @@ export const EmployeeManagementPage: React.FC = () => {
                       </select>
                     </div>
 
-                    {/* 6. Monthly Salary and Employment Status */}
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        Salary & Status
-                      </span>
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 h-[38px] shadow-2xs focus-within:border-emerald-500">
+                    {/* 11. Monthly Basic Salary */}
+                    <div className="flex flex-col">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                        Monthly Salary (₹)
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 h-[40px] shadow-2xs focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-400 transition-colors">
                         <span className="text-xs font-bold text-slate-500">₹</span>
                         <input
                           type="number"
                           value={formBasicSalary}
                           onChange={(e) => setFormBasicSalary(e.target.value)}
                           placeholder="55000"
-                          className="w-full text-xs font-mono font-bold h-full bg-transparent text-slate-900 outline-none"
+                          className="w-full text-xs font-mono font-bold h-full bg-transparent text-slate-900 outline-none placeholder-slate-400"
                           title="Monthly Base Pay"
                         />
                       </div>
-                      <div className="inline-flex items-center justify-center gap-1.5 px-3 h-[38px] rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/90 whitespace-nowrap shadow-2xs">
-                        <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                        <span className="truncate">
-                          {creatorRole === "owner" || creatorRole === "admin"
-                            ? "Auto Active"
-                            : "Pending Approval"}
-                        </span>
-                      </div>
                     </div>
 
-                    {/* 7. Save Employee and Cancel Buttons */}
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        Actions
-                      </span>
+                    {/* 12. Save Employee Action (Cancel button removed; X icon in header is the cancel option) */}
+                    <div className="flex flex-col justify-end">
+                      <label className="hidden lg:block text-[11px] font-bold text-transparent select-none mb-1.5">
+                        Action
+                      </label>
                       <button
                         type="button"
                         onClick={() => handleAddEmployeeSubmit()}
                         disabled={isSubmitting}
-                        className="w-full h-[38px] px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        className="w-full h-[40px] px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow transition-all inline-flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                         title="Save new employee to hospital roster"
                       >
                         {isSubmitting ? (
                           <>
-                            <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                            <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             <span>Saving...</span>
                           </>
                         ) : (
@@ -817,19 +852,6 @@ export const EmployeeManagementPage: React.FC = () => {
                             <span>Save Employee</span>
                           </>
                         )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingInline(false);
-                          setInlineError(null);
-                        }}
-                        disabled={isSubmitting}
-                        className="w-full h-[38px] px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs border border-slate-200 transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                        title="Cancel adding employee"
-                      >
-                        <X className="w-4 h-4" />
-                        <span>Cancel</span>
                       </button>
                     </div>
                   </div>

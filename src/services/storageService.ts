@@ -11,6 +11,7 @@ import type { GeneralInventoryItem, PurchaseOrder } from '../types/inventory';
 import type { AttendanceRecord, LeaveRequest, PayrollRecord } from '../types/hr';
 import type { AmbulanceTrip, HousekeepingTask, SecurityEntry, MaintenanceRequest } from '../types/support';
 import type { HospitalNotification, AuditLog } from '../types/audit';
+import type { HospitalDelivery } from '../types/delivery';
 import { INITIAL_ROLE_TEMPLATES } from '../constants/roleTemplates';
 
 // Default Multi-Hospital Seed
@@ -411,6 +412,77 @@ export const DEFAULT_EMPLOYEES: Employee[] = [
     status: 'active',
     joiningDate: '2024-10-15',
     attendanceStatus: 'present'
+  },
+  {
+    id: 'emp-del-01',
+    hospitalId: 'hosp-001',
+    employeeCode: 'EMP-905',
+    employeeLoginId: 'UPH@2026DP001',
+    name: 'Karan Verma',
+    email: 'delivery@upstagehospital.org',
+    phone: '+91 98200 11018',
+    departmentId: 'dept-pharm',
+    departmentName: 'Pharmacy Services',
+    designation: 'Hospital Delivery Partner',
+    primaryRole: 'delivery_person',
+    additionalRoles: [],
+    qualification: 'Commercial License & Emergency First Aid',
+    status: 'active',
+    joiningDate: '2024-10-20',
+    attendanceStatus: 'present',
+    availabilityStatus: 'available'
+  }
+];
+
+export const DEFAULT_DELIVERIES: HospitalDelivery[] = [
+  {
+    id: 'del-001',
+    hospitalId: 'hosp-001',
+    deliveryId: 'DEL-2026-001',
+    deliveryPersonId: 'emp-del-01',
+    deliveryPersonName: 'Karan Verma',
+    deliveryPersonCode: 'EMP-905',
+    deliveryAddress: 'Flat 402, Lotus Greens, Sector 45, New Delhi',
+    receiverName: 'Sumantha Banerjee',
+    receiverContact: '+91 98112 34567',
+    packageDescription: 'Urgent Insulin & Cardiac Maintenance Kit (Prescription #RX-8841)',
+    status: 'On the Way',
+    assignedAt: new Date(Date.now() - 3600000).toISOString(),
+    acceptedAt: new Date(Date.now() - 3300000).toISOString(),
+    collectedAt: new Date(Date.now() - 2400000).toISOString(),
+    onTheWayAt: new Date(Date.now() - 1200000).toISOString(),
+    statusHistory: [
+      {
+        status: 'Assigned',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        updatedBy: 'emp-admin-01',
+        updatedByName: 'Pooja Deshmukh',
+        notes: 'Delivery dispatched from Central Pharmacy'
+      },
+      {
+        status: 'Accepted',
+        timestamp: new Date(Date.now() - 3300000).toISOString(),
+        updatedBy: 'emp-del-01',
+        updatedByName: 'Karan Verma',
+        notes: 'Assignment accepted by delivery partner'
+      },
+      {
+        status: 'Collected',
+        timestamp: new Date(Date.now() - 2400000).toISOString(),
+        updatedBy: 'emp-del-01',
+        updatedByName: 'Karan Verma',
+        notes: 'Medicines package collected from Pharmacy counter'
+      },
+      {
+        status: 'On the Way',
+        timestamp: new Date(Date.now() - 1200000).toISOString(),
+        updatedBy: 'emp-del-01',
+        updatedByName: 'Karan Verma',
+        notes: 'En route to patient delivery address'
+      }
+    ],
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    updatedAt: new Date(Date.now() - 1200000).toISOString()
   }
 ];
 
@@ -997,38 +1069,269 @@ export const DEFAULT_INVOICES: Invoice[] = [
 ];
 
 export const DEFAULT_NOTIFICATIONS: HospitalNotification[] = [
+  // 1. Admin / Owner Notifications
   {
-    id: 'notif-001',
+    id: 'notif-adm-01',
     hospitalId: 'hosp-001',
     targetRole: 'admin',
-    title: 'New Role Request Pending Approval',
-    message: 'Sister Mary Fernandez requested additional role: Ward In-charge. Review required.',
-    category: 'role_request',
+    targetRoles: ['owner', 'admin', 'hr_manager'],
+    title: 'New Employee Registration: Staff Nurse',
+    message: 'Sister Mary Fernandez (EMP-304) registered as Staff Nurse. Verification and approval required.',
+    category: 'approval',
     priority: 'high',
+    targetTab: 'approvals',
+    relatedRecordId: 'emp-nurse-02',
     isRead: false,
-    createdAt: '2026-11-19T14:15:00Z'
+    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString() // 15 mins ago
   },
   {
-    id: 'notif-002',
+    id: 'notif-adm-02',
+    hospitalId: 'hosp-001',
+    targetRole: 'owner',
+    targetRoles: ['owner', 'admin'],
+    title: 'Role Upgrade Request Pending',
+    message: 'Receptionist Kumar Varma requested additional role: Billing Staff. Review credentials.',
+    category: 'role_request',
+    priority: 'normal',
+    targetTab: 'approvals',
+    relatedRecordId: 'req-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString() // 45 mins ago
+  },
+  {
+    id: 'notif-adm-03',
+    hospitalId: 'hosp-001',
+    targetRole: 'owner',
+    targetRoles: ['owner', 'admin', 'accountant'],
+    title: 'Daily Revenue Settlement Update',
+    message: 'Daily OPD & Pharmacy collection reached ₹1,85,400 across 34 settled invoices.',
+    category: 'finance',
+    priority: 'normal',
+    targetTab: 'accounts',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString() // 1.5 hrs ago
+  },
+
+  // 2. Doctor Notifications
+  {
+    id: 'notif-doc-01',
     hospitalId: 'hosp-001',
     targetRole: 'doctor',
-    title: 'Lab Report Verified',
-    message: 'Lipid Profile for Amitabh Sen (UPH-2026-00101) is ready with abnormal findings.',
+    targetRoles: ['doctor', 'owner', 'admin'],
+    title: 'New OPD Patient Assigned: Token #12',
+    message: 'Walk-in patient Ramesh Verma (UPH-2026-00101) checked in for General Medicine OPD.',
     category: 'clinical',
-    priority: 'normal',
+    priority: 'high',
+    targetTab: 'doctor_dashboard',
+    relatedRecordId: 'pat-001',
     isRead: false,
-    createdAt: '2026-11-19T14:05:00Z'
+    createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString() // 10 mins ago
   },
   {
-    id: 'notif-003',
+    id: 'notif-doc-02',
+    hospitalId: 'hosp-001',
+    targetRole: 'doctor',
+    targetRoles: ['doctor'],
+    title: 'Lab Report Verified & Ready',
+    message: 'Complete Blood Count (CBC) and Lipid Profile for Amitabh Sen ready for clinical review.',
+    category: 'lab',
+    priority: 'normal',
+    targetTab: 'doctor_dashboard',
+    relatedRecordId: 'lab-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 35).toISOString()
+  },
+  {
+    id: 'notif-doc-03',
+    hospitalId: 'hosp-001',
+    targetRole: 'doctor',
+    targetRoles: ['doctor'],
+    title: 'Appointment Follow-up Scheduled',
+    message: 'Follow-up appointment with Sunita Devi scheduled today at 4:30 PM in Consultation Room 2.',
+    category: 'appointment',
+    priority: 'normal',
+    targetTab: 'doctor_dashboard',
+    relatedRecordId: 'apt-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString()
+  },
+
+  // 3. Nurse Notifications
+  {
+    id: 'notif-nur-01',
+    hospitalId: 'hosp-001',
+    targetRole: 'nurse',
+    targetRoles: ['nurse', 'doctor', 'owner'],
+    title: 'New Patient Ward Admission',
+    message: 'Patient Anita Rao admitted to Female General Ward (Bed B-102). Vitals schedule initiated.',
+    category: 'clinical',
+    priority: 'high',
+    targetTab: 'nurse_dashboard',
+    relatedRecordId: 'adm-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 20).toISOString()
+  },
+  {
+    id: 'notif-nur-02',
+    hospitalId: 'hosp-001',
+    targetRole: 'nurse',
+    targetRoles: ['nurse'],
+    title: 'Doctor Instruction: Medication Due',
+    message: 'Administer IV Pantoprazole 40mg and Ceftriaxone 1g for Bed A-104 (Post-Op).',
+    category: 'clinical',
+    priority: 'high',
+    targetTab: 'nurse_dashboard',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 50).toISOString()
+  },
+
+  // 4. Delivery Person Notifications
+  {
+    id: 'notif-del-01',
+    hospitalId: 'hosp-001',
+    targetRole: 'delivery_person',
+    targetRoles: ['delivery_person', 'owner', 'admin'],
+    title: 'New Prescription Delivery Assigned',
+    message: 'Order #DEL-2026-008 assigned for delivery to Rajiv Mehta at 14/B Indiranagar, Bengaluru. Contact: +91 98450 12345.',
+    category: 'delivery',
+    priority: 'urgent',
+    targetTab: 'delivery_dashboard',
+    relatedRecordId: 'del-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString() // 5 mins ago
+  },
+  {
+    id: 'notif-del-02',
+    hospitalId: 'hosp-001',
+    targetRole: 'delivery_person',
+    targetRoles: ['delivery_person'],
+    title: 'Pharmacy Dispatch Package Ready',
+    message: 'Emergency medicine package #DEL-2026-009 packaged and ready for pickup at Central Pharmacy counter.',
+    category: 'delivery',
+    priority: 'high',
+    targetTab: 'delivery_dashboard',
+    relatedRecordId: 'del-002',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString()
+  },
+
+  // 5. Pharmacy Staff Notifications
+  {
+    id: 'notif-phr-01',
     hospitalId: 'hosp-001',
     targetRole: 'pharmacist',
-    title: 'Low Stock Alert: Pan 40mg',
-    message: 'Only 15 strips remaining. Minimum threshold is 40 strips.',
+    targetRoles: ['pharmacist', 'pharmacy_staff', 'store_manager', 'owner', 'admin'],
+    title: 'Critical Low Stock Alert: Pan 40mg',
+    message: 'Only 12 strips remaining in Central Pharmacy. Minimum safe threshold is 40 strips. Please reorder.',
     category: 'pharmacy',
     priority: 'high',
+    targetTab: 'pharmacy',
+    relatedRecordId: 'med-001',
     isRead: false,
-    createdAt: '2026-11-20T08:00:00Z'
+    createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString()
+  },
+  {
+    id: 'notif-phr-02',
+    hospitalId: 'hosp-001',
+    targetRole: 'pharmacy_staff',
+    targetRoles: ['pharmacist', 'pharmacy_staff'],
+    title: 'New Prescription Dispense Request',
+    message: 'OPD Doctor prescribed 3 medications for Patient Amitabh Sen. Dispensing queue updated.',
+    category: 'pharmacy',
+    priority: 'normal',
+    targetTab: 'pharmacy',
+    relatedRecordId: 'rx-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 80).toISOString()
+  },
+
+  // 6. Billing Staff Notifications
+  {
+    id: 'notif-bil-01',
+    hospitalId: 'hosp-001',
+    targetRole: 'billing_staff',
+    targetRoles: ['billing_staff', 'accountant', 'owner', 'admin'],
+    title: 'Pending Patient Clearance Invoice',
+    message: 'Discharge bill generated for Patient Rajesh Kumar (Invoice #INV-2026-0045): ₹8,500 pending settlement.',
+    category: 'billing',
+    priority: 'high',
+    targetTab: 'billing',
+    relatedRecordId: 'inv-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString()
+  },
+  {
+    id: 'notif-bil-02',
+    hospitalId: 'hosp-001',
+    targetRole: 'billing_staff',
+    targetRoles: ['billing_staff', 'accountant'],
+    title: 'Payment Confirmation: ₹2,400',
+    message: 'OPD Consultation & Pharmacy payment confirmed via UPI for Token #08. Receipt generated.',
+    category: 'billing',
+    priority: 'normal',
+    targetTab: 'billing',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 110).toISOString()
+  },
+
+  // 7. Accountant Notifications
+  {
+    id: 'notif-acc-01',
+    hospitalId: 'hosp-001',
+    targetRole: 'accountant',
+    targetRoles: ['accountant', 'owner', 'admin'],
+    title: 'New Expense Voucher Recorded',
+    message: 'Medical Oxygen Cylinder vendor payment voucher ₹35,000 recorded under Plant & Biomedical Utilities.',
+    category: 'finance',
+    priority: 'normal',
+    targetTab: 'accountant_dashboard',
+    relatedRecordId: 'exp-001',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 70).toISOString()
+  },
+  {
+    id: 'notif-acc-02',
+    hospitalId: 'hosp-001',
+    targetRole: 'accountant',
+    targetRoles: ['accountant', 'owner', 'admin'],
+    title: 'Monthly Staff Payroll Ready',
+    message: 'Hospital payroll calculated for 18 staff members (Total: ₹4,85,000). Ready for bank disbursement review.',
+    category: 'finance',
+    priority: 'high',
+    targetTab: 'payroll',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 150).toISOString()
+  },
+
+  // 8. Lab Technician Notifications
+  {
+    id: 'notif-lab-01',
+    hospitalId: 'hosp-001',
+    targetRole: 'lab_technician',
+    targetRoles: ['lab_technician', 'owner', 'admin'],
+    title: 'New Diagnostic Order: Blood Chemistry',
+    message: 'Serum Creatinine & Liver Function Test requested for OPD Patient Vikas Singh. Sample collection ready.',
+    category: 'lab',
+    priority: 'high',
+    targetTab: 'lab',
+    relatedRecordId: 'lab-002',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 40).toISOString()
+  },
+
+  // 9. Receptionist Notifications
+  {
+    id: 'notif-rec-01',
+    hospitalId: 'hosp-001',
+    targetRole: 'receptionist',
+    targetRoles: ['receptionist', 'doctor', 'nurse', 'owner'],
+    title: 'OPD Walk-in Queue Alert',
+    message: '4 patients waiting in General Medicine OPD. Next token #13 ready for consultation room call.',
+    category: 'clinical',
+    priority: 'normal',
+    targetTab: 'reception_dashboard',
+    isRead: false,
+    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString()
   }
 ];
 
@@ -1344,10 +1647,19 @@ class HospitalStorageService {
     try {
       const stored = localStorage.getItem(this.getStorageKey(hospitalId, collection));
       if (!stored) {
-        this.saveCollection(hospitalId, collection, defaultValue);
-        return defaultValue;
+        const initial = collection === 'notifications'
+          ? (DEFAULT_NOTIFICATIONS.map(n => ({ ...n, hospitalId })) as unknown as T[])
+          : defaultValue;
+        this.saveCollection(hospitalId, collection, initial);
+        return initial;
       }
-      return JSON.parse(stored) as T[];
+      const parsed = JSON.parse(stored) as T[];
+      if (collection === 'notifications' && Array.isArray(parsed) && parsed.length === 0) {
+        const initial = DEFAULT_NOTIFICATIONS.map(n => ({ ...n, hospitalId })) as unknown as T[];
+        this.saveCollection(hospitalId, collection, initial);
+        return initial;
+      }
+      return parsed;
     } catch {
       return defaultValue;
     }
@@ -1381,7 +1693,7 @@ class HospitalStorageService {
       this.saveCollection(hospitalId, 'radiologyOrders', []);
       this.saveCollection(hospitalId, 'expenses', []);
       this.saveCollection(hospitalId, 'invoices', []);
-      this.saveCollection(hospitalId, 'notifications', []);
+      this.saveCollection(hospitalId, 'notifications', DEFAULT_NOTIFICATIONS.map(n => ({ ...n, hospitalId })));
       this.saveCollection(hospitalId, 'auditLogs', []);
       this.saveCollection(hospitalId, 'attendance', []);
       this.saveCollection(hospitalId, 'payroll', []);

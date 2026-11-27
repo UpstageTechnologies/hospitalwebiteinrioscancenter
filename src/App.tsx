@@ -25,6 +25,8 @@ import { AccountantDashboard } from './pages/dashboards/AccountantDashboard';
 import { SupportDashboards } from './pages/dashboards/SupportDashboards';
 import { OwnerDashboard } from './pages/dashboards/OwnerDashboard';
 import { EmployeeDashboard } from './pages/dashboards/EmployeeDashboard';
+import { DeliveryPersonDashboard } from './pages/dashboards/DeliveryPersonDashboard';
+import { DeliveryTrackingView } from './components/delivery/DeliveryTrackingView';
 import { MyRolesPage } from './pages/modules/MyRolesPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { StaffLoginPage } from './pages/auth/StaffLoginPage';
@@ -62,6 +64,8 @@ const HospitalAppContent: React.FC = () => {
         return 'store_dashboard';
       case 'accountant':
         return 'accountant_dashboard';
+      case 'delivery_person':
+        return 'delivery_dashboard';
       case 'ambulance_driver':
       case 'housekeeping':
       case 'security':
@@ -221,6 +225,11 @@ const HospitalAppContent: React.FC = () => {
         return <AccountantDashboard />;
       case 'support_dashboard':
         return <SupportDashboards />;
+      case 'delivery_dashboard':
+        return <DeliveryPersonDashboard />;
+      case 'delivery_tracking':
+      case 'deliveries':
+        return <DeliveryTrackingView />;
       case 'owner_dashboard':
         return <OwnerDashboard onNavigateTab={(tab) => setCurrentTab(tab)} />;
       case 'employee_dashboard':

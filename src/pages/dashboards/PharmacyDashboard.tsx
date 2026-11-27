@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { firestoreService } from '../../services/firestoreService';
 import type { PosMedicine } from '../../services/posIntegrationService';
 import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
+import { DeliveryAssignmentModal } from '../../components/delivery/DeliveryAssignmentModal';
 import {
   Pill,
   Search,
@@ -16,7 +17,8 @@ import {
   ShieldCheck,
   Check,
   X,
-  HeartPulse
+  HeartPulse,
+  Truck
 } from 'lucide-react';
 
 interface QueuedPrescription {
@@ -58,6 +60,10 @@ export const PharmacyDashboard: React.FC = () => {
     defaultTaskType?: string;
     clinicalOrderDetails?: any;
   } | null>(null);
+
+  // Delivery Assignment Modal State
+  const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
+  const [deliveryPackageNote, setDeliveryPackageNote] = useState('');
 
   // Subscribe to real-time prescriptions subcollection
   useEffect(() => {
@@ -132,6 +138,19 @@ export const PharmacyDashboard: React.FC = () => {
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              setDeliveryPackageNote('Pharmacy Prescription Home Delivery');
+              setDeliveryModalOpen(true);
+            }}
+            className="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            title="Dispatch medicine delivery with partner"
+          >
+            <Truck className="w-4 h-4 text-indigo-600" />
+            <span>Assign Delivery</span>
+          </button>
+
           <button
             onClick={() => {
               setNurseHelpContext({ defaultTaskType: 'Injection Administration' });
@@ -383,6 +402,13 @@ export const PharmacyDashboard: React.FC = () => {
         patientUhid={nurseHelpContext?.patientUhid}
         defaultTaskType={nurseHelpContext?.defaultTaskType || 'Injection Administration'}
         clinicalOrderDetails={nurseHelpContext?.clinicalOrderDetails}
+      />
+
+      {/* 4-Field Delivery Assignment Modal */}
+      <DeliveryAssignmentModal
+        isOpen={deliveryModalOpen}
+        onClose={() => setDeliveryModalOpen(false)}
+        defaultPackageDescription={deliveryPackageNote}
       />
     </div>
   );

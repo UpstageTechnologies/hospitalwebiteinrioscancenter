@@ -29,6 +29,7 @@ import type { HospitalNotification, AuditLog } from '../types/audit';
 import type { Department } from '../types/hospital';
 import type { RoleId } from '../types/roles';
 import type { NurseTask, NurseAvailabilityStatus } from '../types/nurse';
+import type { HospitalDelivery, DeliveryStatus, DeliveryStatusHistoryItem } from '../types/delivery';
 import { dispenseMedicineAtomic } from './posIntegrationService';
 import {
   DEFAULT_DEPARTMENTS
@@ -1464,6 +1465,255 @@ export class FirestoreHospitalService {
       availabilityStatus: status,
       lastAvailabilityUpdate: now
     });
+  }
+
+  // =========================================================================
+  // HOSPITAL DELIVERY PERSON & TRACKING METHODS
+  // =========================================================================
+
+  // 1. Assign Delivery - exactly 4 input fields + optional description
+  public async assignDelivery(
+    hospitalId: string,
+    data: {
+      deliveryPersonId: string;
+      deliveryPersonName: string;
+      deliveryPersonCode?: string;
+      deliveryAddress: string;
+      receiverName: string;
+      receiverContact: string;
+      packageDescription?: string;
+      assignedByStaffId?: string;
+      assignedByStaffName?: string;
+    }
+  ): Promise<{ success: boolean; deliveryId?: string; error?: string; delivery?: HospitalDelivery }> {
+    try {
+      if (!data.deliveryPersonId || !data.deliveryAddress?.trim() || !data.receiverName?.trim() || !data.receiverContact?.trim()) {
+        return { success: false, error: 'All 4 fields are required: Delivery Person, Address, Receiver Name, and Receiver Contact.' };
+      }
+
+      const now = new Date().toISOString();
+      const rawId = `del-${Date.now()}`;
+      const humanCode = `DEL-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+
+      const initialHistoryItem: DeliveryStatusHistoryItem = {
+        status: 'Assigned',
+        timestamp: now,
+        updatedBy: data.assignedByStaffId || 'admin',
+        updatedByName: data.assignedByStaffName || 'Hospital Dispatch',
+        notes: data.packageDescription ? `Package: ${data.packageDescription}` : 'Delivery assigned by staff'
+      };
+
+      const newDelivery: HospitalDelivery = {
+        id: rawId,
+        hospitalId,
+        deliveryId: humanCode,
+        deliveryPersonId: data.deliveryPersonId,
+        deliveryPersonName: data.deliveryPersonName,
+        deliveryPersonCode: data.deliveryPersonCode,
+        deliveryAddress: data.deliveryAddress.trim(),
+        receiverName: data.receiverName.trim(),
+        receiverContact: data.receiverContact.trim(),
+        packageDescription: data.packageDescription?.trim() || 'Hospital Medical Delivery',
+        status: 'Assigned',
+        assignedAt: now,
+        statusHistory: [initialHistoryItem],
+        createdAt: now,
+        updatedAt: now
+      };
+
+      await this.setDocument(hospitalId, 'deliveries', rawId, newDelivery);
+
+      // Update delivery person's availability to 'busy'
+      await this.updateDocument(hospitalId, 'employees', data.deliveryPersonId, {
+        availabilityStatus: 'busy',
+        lastAvailabilityUpdate: now
+      }).catch(e => console.warn('Could not update delivery person availabilityStatus:', e));
+
+      return { success: true, deliveryId: rawId, delivery: newDelivery };
+    } catch (err: any) {
+      console.error('assignDelivery error:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 2. Accept Delivery (only assigned delivery person)
+  public async acceptDelivery(
+    hospitalId: string,
+    deliveryId: string,
+    deliveryPersonId: string,
+    actorName?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const docRef = this.getDocRef(hospitalId, 'deliveries', deliveryId);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return { success: false, error: 'Delivery record not found.' };
+
+      const delivery = snap.data() as HospitalDelivery;
+
+      if (delivery.deliveryPersonId !== deliveryPersonId) {
+        return { success: false, error: 'Unauthorized: You are not the assigned delivery person for this delivery.' };
+      }
+
+      if (delivery.status !== 'Assigned') {
+        return { success: false, error: `Invalid transition: Cannot accept a delivery with status "${delivery.status}".` };
+      }
+
+      const now = new Date().toISOString();
+      const historyItem: DeliveryStatusHistoryItem = {
+        status: 'Accepted',
+        timestamp: now,
+        updatedBy: deliveryPersonId,
+        updatedByName: actorName || delivery.deliveryPersonName,
+        notes: 'Delivery accepted by delivery partner'
+      };
+
+      const updates: Partial<HospitalDelivery> = {
+        status: 'Accepted',
+        acceptedAt: now,
+        updatedAt: now,
+        statusHistory: [...(delivery.statusHistory || []), historyItem]
+      };
+
+      await this.updateDocument(hospitalId, 'deliveries', deliveryId, updates);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 3. Reject Delivery (only assigned delivery person)
+  public async rejectDelivery(
+    hospitalId: string,
+    deliveryId: string,
+    deliveryPersonId: string,
+    rejectionReason: string,
+    actorName?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const docRef = this.getDocRef(hospitalId, 'deliveries', deliveryId);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return { success: false, error: 'Delivery record not found.' };
+
+      const delivery = snap.data() as HospitalDelivery;
+
+      if (delivery.deliveryPersonId !== deliveryPersonId) {
+        return { success: false, error: 'Unauthorized: You are not the assigned delivery person for this delivery.' };
+      }
+
+      if (delivery.status !== 'Assigned') {
+        return { success: false, error: `Invalid transition: Cannot reject a delivery that is already ${delivery.status}.` };
+      }
+
+      const now = new Date().toISOString();
+      const historyItem: DeliveryStatusHistoryItem = {
+        status: 'Rejected',
+        timestamp: now,
+        updatedBy: deliveryPersonId,
+        updatedByName: actorName || delivery.deliveryPersonName,
+        notes: `Declined by delivery partner: ${rejectionReason || 'Unavailable'}`
+      };
+
+      const updates: Partial<HospitalDelivery> = {
+        status: 'Rejected',
+        rejectionReason: rejectionReason || 'Unavailable',
+        updatedAt: now,
+        statusHistory: [...(delivery.statusHistory || []), historyItem]
+      };
+
+      await this.updateDocument(hospitalId, 'deliveries', deliveryId, updates);
+
+      // Free the delivery person back to available
+      await this.updateDocument(hospitalId, 'employees', deliveryPersonId, {
+        availabilityStatus: 'available',
+        lastAvailabilityUpdate: now
+      }).catch(e => console.warn(e));
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // 4. Update Delivery Status (Sequential: Accepted -> Collected -> On the Way -> Delivered)
+  public async updateDeliveryStatus(
+    hospitalId: string,
+    deliveryId: string,
+    deliveryPersonId: string,
+    nextStatus: DeliveryStatus,
+    notes?: string,
+    actorName?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const docRef = this.getDocRef(hospitalId, 'deliveries', deliveryId);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return { success: false, error: 'Delivery record not found.' };
+
+      const delivery = snap.data() as HospitalDelivery;
+
+      if (delivery.deliveryPersonId !== deliveryPersonId) {
+        return { success: false, error: 'Unauthorized: Only the assigned delivery person can update this delivery.' };
+      }
+
+      // Check duplicate completion
+      if (delivery.status === 'Delivered') {
+        return { success: false, error: 'Delivery has already been completed and confirmed.' };
+      }
+
+      // Enforce strict sequential transitions:
+      const validTransitions: Record<DeliveryStatus, DeliveryStatus[]> = {
+        'Assigned': ['Accepted', 'Rejected'],
+        'Accepted': ['Collected'],
+        'Collected': ['On the Way'],
+        'On the Way': ['Delivered'],
+        'Delivered': [],
+        'Rejected': []
+      };
+
+      const allowed = validTransitions[delivery.status] || [];
+      if (!allowed.includes(nextStatus)) {
+        return {
+          success: false,
+          error: `Invalid status transition: Cannot change status from "${delivery.status}" to "${nextStatus}". Next expected status is "${allowed.join(' or ')}".`
+        };
+      }
+
+      const now = new Date().toISOString();
+      const historyItem: DeliveryStatusHistoryItem = {
+        status: nextStatus,
+        timestamp: now,
+        updatedBy: deliveryPersonId,
+        updatedByName: actorName || delivery.deliveryPersonName,
+        notes: notes || `Status updated to ${nextStatus}`
+      };
+
+      const updates: Partial<HospitalDelivery> = {
+        status: nextStatus,
+        updatedAt: now,
+        statusHistory: [...(delivery.statusHistory || []), historyItem]
+      };
+
+      if (nextStatus === 'Collected') {
+        updates.collectedAt = now;
+      } else if (nextStatus === 'On the Way') {
+        updates.onTheWayAt = now;
+      } else if (nextStatus === 'Delivered') {
+        updates.deliveredAt = now;
+      }
+
+      await this.updateDocument(hospitalId, 'deliveries', deliveryId, updates);
+
+      // When delivered, free the delivery person back to 'available'
+      if (nextStatus === 'Delivered') {
+        await this.updateDocument(hospitalId, 'employees', delivery.deliveryPersonId, {
+          availabilityStatus: 'available',
+          lastAvailabilityUpdate: now
+        }).catch(e => console.warn(e));
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
   }
 
   // AUDIT LOGGER

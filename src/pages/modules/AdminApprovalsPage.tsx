@@ -5,6 +5,7 @@ import type { Employee } from '../../types/employee';
 import type { RoleId } from '../../types/roles';
 import type { RoleRequest } from '../../types/roleRequest';
 import { NurseHelpDialog } from '../../components/nurse/NurseHelpDialog';
+import { DeliveryTrackingView } from '../../components/delivery/DeliveryTrackingView';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -28,7 +29,8 @@ import {
   PlusCircle,
   MinusCircle,
   RotateCcw,
-  HeartPulse
+  HeartPulse,
+  Truck
 } from 'lucide-react';
 
 export const AdminApprovalsPage: React.FC = () => {
@@ -43,7 +45,7 @@ export const AdminApprovalsPage: React.FC = () => {
   } = useHospital();
   const { currentUser, activeRole } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'pending_employees' | 'staff_role_requests' | 'history'>('pending_employees');
+  const [activeTab, setActiveTab] = useState<'pending_employees' | 'staff_role_requests' | 'history' | 'deliveries'>('pending_employees');
   
   // Modals state
   const [rejectModalEmployee, setRejectModalEmployee] = useState<Employee | null>(null);
@@ -218,6 +220,18 @@ export const AdminApprovalsPage: React.FC = () => {
               {historicalEmployees.length + historicalRoleRequests.length}
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('deliveries')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'deliveries'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            }`}
+          >
+            <Truck className="w-3.5 h-3.5" />
+            <span>Live Delivery Tracking</span>
+          </button>
         </div>
       </div>
 
@@ -230,6 +244,7 @@ export const AdminApprovalsPage: React.FC = () => {
           </span>
         </div>
       )}
+
 
       {/* TAB 1: PENDING EMPLOYEE REGISTRATIONS */}
       {activeTab === 'pending_employees' && (
@@ -408,6 +423,7 @@ export const AdminApprovalsPage: React.FC = () => {
         </div>
       )}
 
+
       {/* TAB 2: STAFF ROLE REQUESTS (Additions and Deactivations) */}
       {activeTab === 'staff_role_requests' && (
         <div className="space-y-4">
@@ -510,6 +526,7 @@ export const AdminApprovalsPage: React.FC = () => {
           )}
         </div>
       )}
+
 
       {/* TAB 3: DECISION HISTORY */}
       {activeTab === 'history' && (
@@ -686,6 +703,12 @@ export const AdminApprovalsPage: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 4: LIVE DELIVERY TRACKING */}
+      {activeTab === 'deliveries' && (
+        <DeliveryTrackingView />
+      )}
+
+
       {/* MODAL 1: SELECTIVE ROLE REVIEW FOR EMPLOYEE REGISTRATION */}
       {reviewRolesEmployee && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
@@ -789,6 +812,7 @@ export const AdminApprovalsPage: React.FC = () => {
         </div>
       )}
 
+
       {/* MODAL 2: REJECT EMPLOYEE REGISTRATION */}
       {rejectModalEmployee && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
@@ -840,6 +864,7 @@ export const AdminApprovalsPage: React.FC = () => {
           </div>
         </div>
       )}
+
 
       {/* MODAL 3: REJECT ROLE REQUEST */}
       {rejectModalRoleRequest && (
@@ -893,6 +918,7 @@ export const AdminApprovalsPage: React.FC = () => {
           </div>
         </div>
       )}
+
 
       {/* MODAL 4: INSPECT PROFILE */}
       {inspectEmployee && (
@@ -954,6 +980,7 @@ export const AdminApprovalsPage: React.FC = () => {
           </div>
         </div>
       )}
+
       {/* Reusable Nurse Help Dialog */}
       <NurseHelpDialog
         isOpen={nurseHelpOpen}

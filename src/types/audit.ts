@@ -4,13 +4,17 @@ export interface HospitalNotification {
   id: string;
   hospitalId: string;
   targetRole?: RoleId | 'all';
+  targetRoles?: (RoleId | 'all')[];
   targetUserId?: string;
+  targetEmployeeId?: string;
   title: string;
   message: string;
-  category: 'role_request' | 'clinical' | 'emergency' | 'billing' | 'pharmacy' | 'system' | 'lab';
+  category: 'role_request' | 'approval' | 'clinical' | 'patient' | 'appointment' | 'emergency' | 'billing' | 'pharmacy' | 'system' | 'lab' | 'delivery' | 'finance';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   relatedRecordId?: string;
+  targetTab?: string;
   isRead: boolean;
+  readBy?: string[];
   createdAt: string;
 }
 
